@@ -37,7 +37,7 @@ class TagConsensus : public rclcpp::Node {
     tf2_ros::TransformListener listener;
     tf2_ros::TransformBroadcaster broadcaster;
 
-    std::vector<std::string> estimateFrameIds;
+    std::vector<std::string> posePrefixes;
     rclcpp::Duration maxEstimateAge;
 
     std::shared_ptr<rclcpp::TimerBase> timer;
@@ -49,25 +49,34 @@ class TagConsensus : public rclcpp::Node {
 
         // get all estimates
         std::ranges::transform(
-            estimateFrameIds, std::back_inserter(estimates),
+            // filter all frames to just those in one of our prefixes
+            buffer.getAllFrameNames() | std::views::filter([this](const std::string& frameId) {
+                return std::ranges::any_of(posePrefixes, [&frameId](const std::string& prefix) {
+                    return frameId.starts_with(prefix);
+                });
+            }),
+            std::back_inserter(estimates),
             [&](const std::string& frameId) {
-                // look up the newest transform from "field" to the frame in question
+                // look up the current transform from "field" to the frame in question
                 return buffer.lookupTransform(
-                    frameId, "field", tf2::TimePointZero, 5ms
+                    frameId, "field", now, 5ms
                 );
             }
         );
 
+        int rejectedForAge = 0, rejectedForObviousOutlier = 0;
         // reject obvious outliers and estimates that are too old
         std::erase_if(estimates, [&](const TransformStamped& transform) {
             if (now - transform.header.stamp > maxEstimateAge) {
                 // this estimate is too old. reject it.
+                rejectedForAge++;
                 return false;
             }
 
             if (transform.transform.translation.z > 1) {
                 // above 1 meter. unless the robot suddenly learned how to hover,
                 // this transform is probably invalid.
+                rejectedForObviousOutlier++;
                 return false;
             }
 
@@ -75,6 +84,18 @@ class TagConsensus : public rclcpp::Node {
 
             return true;
         });
+
+        RCLCPP_DEBUG_THROTTLE(
+            get_logger(), *get_clock(), 1000,
+            "Rejected %d old poses and %d obvious outliers, leaving %d poses for RANSAC",
+            rejectedForAge, rejectedForObviousOutlier,
+            static_cast<int>(estimates.size()) - rejectedForAge - rejectedForObviousOutlier
+        );
+
+        if (estimates.empty()) {
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 500, "No poses available for consensus!");
+            return;
+        }
 
         // project transforms into 2d poses
         std::vector<Pose> poses;
@@ -103,10 +124,9 @@ public:
     TagConsensus() : Node("tag_consensus"), buffer(get_clock()), listener(buffer, this),
         broadcaster(this), maxEstimateAge(0s)
     {
-        // todo change to prefix system
-        estimateFrameIds = declare_parameter<std::vector<std::string>>("estimate_frame_ids", { });
-        if (estimateFrameIds.empty()) {
-            constexpr auto msg = "estimate_frame_ids is empty. There needs to be at least 1 ID "
+        posePrefixes = declare_parameter<std::vector<std::string>>("pose_prefixes", { });
+        if (posePrefixes.empty()) {
+            constexpr auto msg = "pose_prefixes is empty. There needs to be at least 1 prefix"
                                  "for there to be any kind of consensus!";
             RCLCPP_FATAL(get_logger(), msg);
             throw std::runtime_error(msg);

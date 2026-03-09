@@ -68,7 +68,7 @@ class RosNtBridge : public rclcpp::Node {
 
     void publishTransform() {
         const geometry_msgs::msg::TransformStamped visionPoseEstimate = buffer.lookupTransform(
-            "field", "vision_pose_estimate", tf2::TimePointZero
+            "vision_pose_estimate", "field", tf2::TimePointZero
         );
 
         std::array msg {
