@@ -15,9 +15,6 @@
 
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 
-#include <Eigen/Dense>
-#include <opencv2/core/matx.hpp>
-
 #include "ransac.h"
 
 using namespace std::chrono_literals;
@@ -142,7 +139,7 @@ public:
     TagConsensus() : Node("tag_consensus"), buffer(get_clock()), listener(buffer, this),
         broadcaster(this), maxEstimateAge(0s)
     {
-        posePrefixes = declare_parameter<std::vector<std::string>>("pose_prefixes", { });
+        posePrefixes = declare_parameter("pose_prefixes", std::vector<std::string>());
         if (posePrefixes.empty()) {
             constexpr auto msg = "pose_prefixes is empty. There needs to be at least 1 prefix"
                                  "for there to be any kind of consensus!";
