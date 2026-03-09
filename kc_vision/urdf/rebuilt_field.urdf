@@ -1,0 +1,204 @@
+<?xml version="1.0"?>
+<robot name="rebuilt_field">
+    <link name="field">
+        <visual>
+            <origin xyz="8.259 4.0215 0" rpy="0 0 3.1415926"/>
+            <geometry>
+                <mesh filename="package://kc_vision/resources/rebuilt_field.dae"/>
+            </geometry>
+        </visual>
+    </link>
+
+    <link name="apriltag_1"/>
+    <joint name="field_to_apriltag_1" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_1"/>
+        <origin xyz="11.863959 7.411491399999999 0.889" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_2"/>
+    <joint name="field_to_apriltag_2" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_2"/>
+        <origin xyz="11.9013986 4.6247558 1.12395" rpy="1.5707963267948963 -2.465190328815662e-32 3.141592653589793"/>
+    </joint>
+    <link name="apriltag_3"/>
+    <joint name="field_to_apriltag_3" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_3"/>
+        <origin xyz="11.2978438 4.3769534 1.12395" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_4"/>
+    <joint name="field_to_apriltag_4" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_4"/>
+        <origin xyz="11.2978438 4.0213534 1.12395" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_5"/>
+    <joint name="field_to_apriltag_5" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_5"/>
+        <origin xyz="11.9013986 3.417951 1.12395" rpy="1.5707963267948963 -2.465190328815662e-32 -3.14018491736755e-16"/>
+    </joint>
+    <link name="apriltag_6"/>
+    <joint name="field_to_apriltag_6" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_6"/>
+        <origin xyz="11.863959 0.6312154 0.889" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_7"/>
+    <joint name="field_to_apriltag_7" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_7"/>
+        <origin xyz="11.9388636 0.6312154 0.889" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_8"/>
+    <joint name="field_to_apriltag_8" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_8"/>
+        <origin xyz="12.2569986 3.417951 1.12395" rpy="1.5707963267948963 -2.465190328815662e-32 -3.14018491736755e-16"/>
+    </joint>
+    <link name="apriltag_9"/>
+    <joint name="field_to_apriltag_9" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_9"/>
+        <origin xyz="12.5051566 3.6657534 1.12395" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_10"/>
+    <joint name="field_to_apriltag_10" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_10"/>
+        <origin xyz="12.5051566 4.0213534 1.12395" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_11"/>
+    <joint name="field_to_apriltag_11" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_11"/>
+        <origin xyz="12.2569986 4.6247558 1.12395" rpy="1.5707963267948963 -2.465190328815662e-32 3.141592653589793"/>
+    </joint>
+    <link name="apriltag_12"/>
+    <joint name="field_to_apriltag_12" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_12"/>
+        <origin xyz="11.9388636 7.411491399999999 0.889" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_13"/>
+    <joint name="field_to_apriltag_13" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_13"/>
+        <origin xyz="16.499332 7.391907999999999 0.55245" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_14"/>
+    <joint name="field_to_apriltag_14" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_14"/>
+        <origin xyz="16.499332 6.960107999999999 0.55245" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_15"/>
+    <joint name="field_to_apriltag_15" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_15"/>
+        <origin xyz="16.4989764 4.3124882 0.55245" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_16"/>
+    <joint name="field_to_apriltag_16" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_16"/>
+        <origin xyz="16.4989764 3.8806881999999994 0.55245" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_17"/>
+    <joint name="field_to_apriltag_17" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_17"/>
+        <origin xyz="4.6490636 0.6312154 0.889" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_18"/>
+    <joint name="field_to_apriltag_18" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_18"/>
+        <origin xyz="4.6115986 3.417951 1.12395" rpy="1.5707963267948963 -2.465190328815662e-32 -3.14018491736755e-16"/>
+    </joint>
+    <link name="apriltag_19"/>
+    <joint name="field_to_apriltag_19" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_19"/>
+        <origin xyz="5.2151534 3.6657534 1.12395" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_20"/>
+    <joint name="field_to_apriltag_20" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_20"/>
+        <origin xyz="5.2151534 4.0213534 1.12395" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_21"/>
+    <joint name="field_to_apriltag_21" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_21"/>
+        <origin xyz="4.6115986 4.6247558 1.12395" rpy="1.5707963267948963 -2.465190328815662e-32 3.141592653589793"/>
+    </joint>
+    <link name="apriltag_22"/>
+    <joint name="field_to_apriltag_22" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_22"/>
+        <origin xyz="4.6490636 7.411491399999999 0.889" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_23"/>
+    <joint name="field_to_apriltag_23" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_23"/>
+        <origin xyz="4.574159 7.411491399999999 0.889" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_24"/>
+    <joint name="field_to_apriltag_24" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_24"/>
+        <origin xyz="4.2559986 4.6247558 1.12395" rpy="1.5707963267948963 -2.465190328815662e-32 3.141592653589793"/>
+    </joint>
+    <link name="apriltag_25"/>
+    <joint name="field_to_apriltag_25" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_25"/>
+        <origin xyz="4.007866 4.3769534 1.12395" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_26"/>
+    <joint name="field_to_apriltag_26" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_26"/>
+        <origin xyz="4.007866 4.0213534 1.12395" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_27"/>
+    <joint name="field_to_apriltag_27" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_27"/>
+        <origin xyz="4.2559986 3.417951 1.12395" rpy="1.5707963267948963 -2.465190328815662e-32 -3.14018491736755e-16"/>
+    </joint>
+    <link name="apriltag_28"/>
+    <joint name="field_to_apriltag_28" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_28"/>
+        <origin xyz="4.574159 0.6312154 0.889" rpy="1.5707963267948963 0.0 -1.5707963267948968"/>
+    </joint>
+    <link name="apriltag_29"/>
+    <joint name="field_to_apriltag_29" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_29"/>
+        <origin xyz="0.0136906 0.6507734 0.55245" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_30"/>
+    <joint name="field_to_apriltag_30" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_30"/>
+        <origin xyz="0.0136906 1.0825734 0.55245" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_31"/>
+    <joint name="field_to_apriltag_31" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_31"/>
+        <origin xyz="0.0140462 3.7301932 0.55245" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+    <link name="apriltag_32"/>
+    <joint name="field_to_apriltag_32" type="fixed">
+        <parent link="field"/>
+        <child link="apriltag_32"/>
+        <origin xyz="0.0140462 4.1619931999999995 0.55245" rpy="1.5707963267948963 0.0 1.5707963267948963"/>
+    </joint>
+</robot>

@@ -1,0 +1,27 @@
+image_width: 1280
+image_height: 720
+camera_name: "logitech_c310_64AF26A0"
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [1392.3051576407049, 0.0, 630.91512116752654,
+         0.0, 1392.3051576407049, 441.8821334071115,
+         0.0, 0.0, 1.0]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.02562139774690373, 0.35374189280256202, 0.029140227156194298, 0.0020591172003172871, -1.0960270753488743]
+# derived with cv2.getOptimalNewCameraMatrix
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [1349.06763, 0.0, 632.151788, 0.0,
+         0.0, 1345.92590, 454.558299, 0.0,
+         0.0, 0.0, 1.0, 0.0]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0,
+         0.0, 1.0, 0.0,
+         0.0, 0.0, 1.0]

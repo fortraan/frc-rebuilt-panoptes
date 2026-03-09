@@ -1,0 +1,26 @@
+/front_camera:
+  usb_cam:
+    ros__parameters:
+      framerate: 30.0
+      io_method: "mmap"
+      frame_id: "front_camera"
+      camera_name: "logitech_c310_64AF26A0"
+      pixel_format: "mjpeg2rgb"
+      image_width: 1280
+      image_height: 720
+      camera_info_url: "package://kc_vision/config/camera_calibrations/logitech_c310_64AF26A0.yaml"
+
+  apriltag:
+    ros__parameters:
+      # this node is composed with the other image nodes, so compression actually just increases cost
+      image_transport: "raw"
+      family: "36h11"
+      size: 0.16475 # side length in meters
+      profile: false
+
+      pose_estimate_method: "" # set to empty to disable pose estimation
+
+  solve_pnp:
+    ros__parameters:
+      camera_frame_id: "front_camera"
+      pose_prefix: "front_camera/"

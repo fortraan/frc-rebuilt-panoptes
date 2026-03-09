@@ -1,0 +1,11 @@
+tag_consensus:
+  ros__parameters:
+    pose_prefixes:
+      - "front_camera/"
+      - "left_camera/"
+      - "right_camera/"
+      - "back_camera/"
+    consensus_frame_id: "visual_pose_estimate"
+
+ros_nt_bridge:
+  ros__parameters:
