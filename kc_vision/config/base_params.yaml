@@ -5,6 +5,8 @@ tag_consensus:
       - "left_camera/"
       - "right_camera/"
       - "back_camera/"
+    max_estimate_age_ms: 60
+    update_interval_ms: 20
     consensus_frame_id: "visual_pose_estimate"
 
 ros_nt_bridge:

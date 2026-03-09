@@ -13,7 +13,10 @@
 #include <tf2_ros/transform_listener.hpp>
 #include <tf2_ros/transform_broadcaster.hpp>
 
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+
 #include <Eigen/Dense>
+#include <opencv2/core/matx.hpp>
 
 #include "ransac.h"
 
@@ -39,6 +42,9 @@ class TagConsensus : public rclcpp::Node {
 
     std::vector<std::string> posePrefixes;
     rclcpp::Duration maxEstimateAge;
+    std::string consensusFrameId;
+
+    std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>> posePublisher;
 
     std::shared_ptr<rclcpp::TimerBase> timer;
 
@@ -107,8 +113,7 @@ class TagConsensus : public rclcpp::Node {
         geometry_msgs::msg::TransformStamped transform;
         transform.header.stamp = now;
         transform.header.frame_id = "field";
-        // todo parameterize
-        transform.child_frame_id = "vision_pose_estimate";
+        transform.child_frame_id = consensusFrameId;
         transform.transform.translation.x = x.mean;
         transform.transform.translation.y = y.mean;
         transform.transform.translation.z = 0;
@@ -118,6 +123,19 @@ class TagConsensus : public rclcpp::Node {
         transform.transform.rotation.z = std::sin(heading.mean / 2);
 
         broadcaster.sendTransform(transform);
+
+        geometry_msgs::msg::PoseWithCovarianceStamped poseWithCovariance;
+        poseWithCovariance.header.stamp = now;
+        poseWithCovariance.header.frame_id = "field";
+        poseWithCovariance.pose.pose.position.x = x.mean;
+        poseWithCovariance.pose.pose.position.y = y.mean;
+        poseWithCovariance.pose.pose.position.z = 0;
+        poseWithCovariance.pose.pose.orientation = transform.transform.rotation;
+        poseWithCovariance.pose.covariance[0 * 6 + 0] = std::pow(x.standardDeviation, 2); // x variance
+        poseWithCovariance.pose.covariance[1 * 6 + 1] = std::pow(y.standardDeviation, 2); // y variance
+        poseWithCovariance.pose.covariance[5 * 6 + 5] = std::pow(heading.standardDeviation, 2); // heading variance
+
+        posePublisher->publish(poseWithCovariance);
     }
 
 public:
@@ -131,11 +149,27 @@ public:
             RCLCPP_FATAL(get_logger(), msg);
             throw std::runtime_error(msg);
         }
+
         maxEstimateAge = std::chrono::milliseconds(declare_parameter<int64_t>(
-            "max_estimate_age_ms", 50
+            "max_estimate_age_ms", 60
         ));
 
-        timer = create_wall_timer(20ms, [this] { update(); });
+        const auto updateInterval = std::chrono::milliseconds(declare_parameter<int64_t>(
+            "update_interval_ms", 20
+        ));
+
+        consensusFrameId = declare_parameter<std::string>("consensus_frame_id", "vision_pose_estimate");
+        if (consensusFrameId.empty()) {
+            constexpr auto msg = "consensus_frame_id cannot be empty!";
+            RCLCPP_FATAL(get_logger(), msg);
+            throw std::runtime_error(msg);
+        }
+
+        posePublisher = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
+            consensusFrameId, rclcpp::SensorDataQoS()
+        );
+
+        timer = create_wall_timer(updateInterval, [this] { update(); });
     }
 };
 
