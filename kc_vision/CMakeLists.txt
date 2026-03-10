@@ -11,11 +11,13 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(apriltag_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
+find_package(depthai REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -43,6 +45,7 @@ target_link_libraries(solve_pnp PRIVATE
         common
         rclcpp::rclcpp
         tf2_ros::tf2_ros
+        tf2_geometry_msgs::tf2_geometry_msgs
         fmt::fmt
         ${sensor_msgs_LIBRARIES}
         ${apriltag_msgs_LIBRARIES}
@@ -65,6 +68,14 @@ target_link_libraries(ros_nt_bridge PRIVATE
         tf2_ros::tf2_ros
         ntcore
         wpimath
+)
+
+add_executable(intake_cam src/intake_cam/intake_cam_node.cpp)
+target_include_directories(intake_cam PRIVATE src/intake_cam)
+target_link_libraries(intake_cam PRIVATE
+        common
+        rclcpp::rclcpp
+        depthai::core
 )
 
 install(TARGETS solve_pnp tag_consensus ros_nt_bridge

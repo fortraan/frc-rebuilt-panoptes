@@ -1,6 +1,7 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node, ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
+from launch.substitutions import FileContent
 
 from ament_index_python.packages import get_package_share_directory
 import os
@@ -17,20 +18,6 @@ def get_config_path(name):
 
 def camera_nodes(namespace, config, camera_id):
     return [
-        Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            arguments=[
-                "--frame-id", "robot",
-                "--child-frame-id", "front_camera",
-                #     "--x", 0.5,
-                #     "--y", 0,
-                #     "--z", 0.5,
-                #     "--roll", -0.5 * pi,
-                #     "--pitch", 0,
-                #     "--yaw", -0.5 * pi
-            ]
-        ),
         ComposableNodeContainer(
             name="node_container",
             namespace=namespace,
@@ -87,9 +74,44 @@ def camera_nodes(namespace, config, camera_id):
     ]
 
 def generate_launch_description():
+    pkg_share = get_package_share_directory("kc_vision")
     base_params = get_config_path("base_params.yaml")
 
     nodes = [
+        Node(
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            name="robot_state_publisher",
+            parameters=[
+                base_params,
+                {
+                    "robot_description": FileContent(os.path.join(
+                        pkg_share,
+                        "urdf",
+                        "mk2_robot.urdf"
+                    )),
+                }
+            ]
+        ),
+        # this node publishes a model and description of the field
+        Node(
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            name="field_publisher",
+            parameters=[{
+                "robot_description": FileContent(os.path.join(
+                    pkg_share,
+                    "urdf",
+                    "rebuilt_field.urdf"
+                )),
+                "publish_frequency": 0.2 # publish field transforms every 5 seconds
+            }],
+            remappings=[
+                # this node isn't publishing the description of the actual robot, so remap its topics
+                ("/robot_description", "/field_description"),
+                ("/joint_states", "/field_joint_states")
+            ]
+        ),
         # tag_consensus takes the detections provided by the apriltag nodes and computes the camera pose
         # for each tag. it considers all solutions of solvePnP. obvious outliers are rejected, and the
         # remaining solutions are processed with RANSAC to produce a single pose estimate.

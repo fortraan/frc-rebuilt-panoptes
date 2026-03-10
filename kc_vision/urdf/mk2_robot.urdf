@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<robot name="mk2">
+    <link name="chassis">
+        <visual>
+            <geometry>
+                <box size="1 1 0.25"/>
+            </geometry>
+        </visual>
+    </link>
+
+    <link name="front_camera">
+        <visual>
+            <geometry>
+                <origin xyz="0 0 -0.01"/>
+                <box size="0.08 0.04 0.02"/>
+            </geometry>
+        </visual>
+    </link>
+
+    <joint name="chassis_to_front_camera" type="fixed">
+        <parent link="chassis"/>
+        <child link="front_camera"/>
+        <origin xyz="0.5 0 0.5" rpy="-1.57079 0 -1.57079"/>
+    </joint>
+</robot>

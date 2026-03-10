@@ -3,11 +3,28 @@
 <package format="3">
   <name>kc_vision</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Vision system for FRC team 6419 Kernel Chaos' 2026 robot.</description>
   <maintainer email="fortraan1221@gmail.com">fortraan</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>apriltag_msgs</depend>
+  <depend>depthai</depend>
+
+  <!-- The following libraries are required as well, but are not in rosdistro: fmt, OpenCV, and wpilib -->
+  <!-- Note that OpenCV is a dependency of ROS itself, so it is guaranteed to be installed. -->
+
+  <exec_depend>rclcpp_components</exec_depend>
+  <exec_depend>usb_cam</exec_depend>
+  <exec_depend>image_pipeline</exec_depend>
+  <exec_depend>image_transport_plugins</exec_depend>
+  <exec_depend>apriltag_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
