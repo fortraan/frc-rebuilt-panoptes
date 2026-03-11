@@ -93,6 +93,18 @@ def generate_launch_description():
                 }
             ]
         ),
+        Node(
+            package="tf2_ros",
+            executable="static_transform_publisher",
+            name="debug_robot_pos_broadcaster",
+            parameters=[base_params],
+            arguments=[
+                "--frame-id", "field",
+                "--child-frame-id", "robot",
+                "--x", "8.259",
+                "--y", "4.0215"
+            ]
+        ),
         # this node publishes a model and description of the field
         Node(
             package="robot_state_publisher",
@@ -115,11 +127,13 @@ def generate_launch_description():
         # tag_consensus takes the detections provided by the apriltag nodes and computes the camera pose
         # for each tag. it considers all solutions of solvePnP. obvious outliers are rejected, and the
         # remaining solutions are processed with RANSAC to produce a single pose estimate.
-        # Node(
-        #     package="kc_vision",
-        #     executable="tag_consensus",
-        #     parameters=[base_params]
-        # ),
+        Node(
+            package="kc_vision",
+            executable="tag_consensus",
+            name="tag_consensus",
+            parameters=[base_params],
+            arguments=["--ros-args", "--log-level", "tag_consensus:=DEBUG"]
+        ),
         # ros_nt_bridge connects ROS to NetworkTables. it sends the pose estimate from tag_consensus to
         # the Rio via NetworkTables. additionally, it listens for the fused pose estimate computed by the
         # Rio and publishes it as a TF2 frame.

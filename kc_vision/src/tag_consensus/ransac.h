@@ -16,7 +16,7 @@ struct Model {
 };
 
 struct RansacConfig {
-    int iterations = 10;
+    int iterations = -1;
     int sampleSize = -1;
     double inlierDeviationThreshold = 1;
 };

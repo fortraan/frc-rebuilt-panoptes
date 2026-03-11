@@ -98,7 +98,7 @@ class SolvePnP : public rclcpp::Node {
 
             using namespace std::chrono_literals;
             const geometry_msgs::msg::TransformStamped robotToCameraMsg = buffer.lookupTransform(
-                cameraFrameId, "robot", tf2::TimePointZero, 100ms
+                "robot", cameraFrameId, tf2::TimePointZero, 100ms
             );
             tf2::fromMsg(robotToCameraMsg.transform, robotToCamera);
             hasTransform = true;
@@ -150,6 +150,7 @@ class SolvePnP : public rclcpp::Node {
                     rodriguesToQuaternion(rotations[i]),
                     { translations[i].val[0], translations[i].val[1], translations[i].val[2] }
                 };
+                // todo this isn't working
                 tf2::Transform tagToRobot = (robotToCamera * cameraToTag).inverse();
 
                 // publish transform

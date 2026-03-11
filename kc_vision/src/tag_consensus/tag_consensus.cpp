@@ -16,6 +16,7 @@
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 
 #include "ransac.h"
+#include "utilities.h"
 
 using namespace std::chrono_literals;
 
@@ -46,57 +47,70 @@ class TagConsensus : public rclcpp::Node {
     std::shared_ptr<rclcpp::TimerBase> timer;
 
     void update() {
+        // todo average pose times
         const rclcpp::Time now = get_clock()->now();
 
         std::list<TransformStamped> estimates;
 
         // get all estimates
-        std::ranges::transform(
-            // filter all frames to just those in one of our prefixes
-            buffer.getAllFrameNames() | std::views::filter([this](const std::string& frameId) {
-                return std::ranges::any_of(posePrefixes, [&frameId](const std::string& prefix) {
-                    return frameId.starts_with(prefix);
-                });
-            }),
-            std::back_inserter(estimates),
-            [&](const std::string& frameId) {
-                // look up the current transform from "field" to the frame in question
-                return buffer.lookupTransform(
-                    frameId, "field", now, 5ms
-                );
+        for (const auto& frameId : buffer.getAllFrameNames()) {
+            // filter to only frame IDs under our prefixes
+            if (std::ranges::any_of(posePrefixes, [&frameId](const std::string& prefix) {
+                return frameId.starts_with(prefix);
+            })) {
+                try {
+                    // look up the current transform from "field" to the frame in question
+                    estimates.emplace_back(buffer.lookupTransform(
+                        "field", frameId, tf2::TimePointZero, 5ms
+                    ));
+                } catch (const tf2::TransformException& exception) {
+                    RCLCPP_ERROR_THROTTLE(
+                        get_logger(), *get_clock(), 200,
+                        "Unable to lookup transform from field to %s: %s",
+                        frameId.c_str(), exception.what()
+                    );
+                }
             }
-        );
+        }
 
+        const int originalNumEstimates = static_cast<int>(estimates.size());
         int rejectedForAge = 0, rejectedForObviousOutlier = 0;
         // reject obvious outliers and estimates that are too old
-        std::erase_if(estimates, [&](const TransformStamped& transform) {
-            if (now - transform.header.stamp > maxEstimateAge) {
+        estimates.remove_if([&](const TransformStamped& transform) {
+            const rclcpp::Duration estimateAge = now - transform.header.stamp;
+            RCLCPP_DEBUG_THROTTLE(
+                get_logger(), *get_clock(), 1000,
+                "Estimate age: %ld ms Threshold: %ld ms",
+                estimateAge.to_chrono<std::chrono::milliseconds>().count(),
+                maxEstimateAge.to_chrono<std::chrono::milliseconds>().count()
+            );
+            if (estimateAge > maxEstimateAge) {
                 // this estimate is too old. reject it.
                 rejectedForAge++;
-                return false;
+                return true;
             }
 
             if (transform.transform.translation.z > 1) {
                 // above 1 meter. unless the robot suddenly learned how to hover,
                 // this transform is probably invalid.
                 rejectedForObviousOutlier++;
-                return false;
+                return true;
             }
 
             // todo other checks
 
-            return true;
+            return false;
         });
 
         RCLCPP_DEBUG_THROTTLE(
-            get_logger(), *get_clock(), 1000,
-            "Rejected %d old poses and %d obvious outliers, leaving %d poses for RANSAC",
-            rejectedForAge, rejectedForObviousOutlier,
-            static_cast<int>(estimates.size()) - rejectedForAge - rejectedForObviousOutlier
+            get_logger(), *get_clock(), 500,
+            "Out of %d poses, rejected %d old poses and %d obvious outliers, leaving %d poses for RANSAC",
+            originalNumEstimates, rejectedForAge, rejectedForObviousOutlier,
+            originalNumEstimates - rejectedForAge - rejectedForObviousOutlier
         );
 
         if (estimates.empty()) {
-            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 500, "No poses available for consensus!");
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "No poses available for consensus!");
             return;
         }
 
@@ -114,6 +128,7 @@ class TagConsensus : public rclcpp::Node {
         transform.transform.translation.x = x.mean;
         transform.transform.translation.y = y.mean;
         transform.transform.translation.z = 0;
+        // todo swing twist decomp
         transform.transform.rotation.w = std::cos(heading.mean / 2);
         transform.transform.rotation.x = 0;
         transform.transform.rotation.y = 0;
@@ -136,7 +151,7 @@ class TagConsensus : public rclcpp::Node {
     }
 
 public:
-    TagConsensus() : Node("tag_consensus"), buffer(get_clock()), listener(buffer, this),
+    TagConsensus() : Node("tag_consensus"), buffer(get_clock(), 10s), listener(buffer, this),
         broadcaster(this), maxEstimateAge(0s)
     {
         posePrefixes = declare_parameter("pose_prefixes", std::vector<std::string>());
@@ -167,6 +182,8 @@ public:
         );
 
         timer = create_wall_timer(updateInterval, [this] { update(); });
+
+        RCLCPP_INFO(get_logger(), "Tag consensus initialized.");
     }
 };
 
