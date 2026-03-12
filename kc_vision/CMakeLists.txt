@@ -12,12 +12,19 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(apriltag_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
 find_package(depthai REQUIRED)
+
+# if you're on windows, you'll have to change this
+add_library(ONNX SHARED IMPORTED)
+set_property(TARGET ONNX PROPERTY IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libonnx.so")
+set_property(TARGET ONNX PROPERTY INTERFACE_INCLUDE_DIRECTORIES "/usr/include/")
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -52,7 +59,11 @@ target_link_libraries(solve_pnp PRIVATE
         ${OpenCV_LIBRARIES}
 )
 
-add_executable(tag_consensus src/tag_consensus/tag_consensus.cpp src/tag_consensus/ransac.cpp)
+add_executable(tag_consensus
+        src/tag_consensus/tag_consensus.cpp
+        src/tag_consensus/ransac.cpp
+        src/tag_consensus/apecs.cpp
+)
 target_include_directories(tag_consensus PRIVATE src/tag_consensus)
 target_link_libraries(tag_consensus PRIVATE
         common
@@ -70,12 +81,22 @@ target_link_libraries(ros_nt_bridge PRIVATE
         wpimath
 )
 
-add_executable(intake_cam src/intake_cam/intake_cam_node.cpp)
-target_include_directories(intake_cam PRIVATE src/intake_cam)
+add_executable(intake_cam
+        src/intake_cam/intake_cam_node.cpp
+        src/intake_cam/OakPipeline.cpp
+        src/intake_cam/InferenceEngine.cpp
+)
+target_include_directories(intake_cam PRIVATE
+        src/intake_cam
+        ${visualization_msgs_INCLUDE_DIRS}
+)
 target_link_libraries(intake_cam PRIVATE
         common
         rclcpp::rclcpp
+        ament_index_cpp::ament_index_cpp
         depthai::core
+        ONNX
+        ${visualization_msgs_LIBRARIES}
 )
 
 install(TARGETS solve_pnp tag_consensus ros_nt_bridge
