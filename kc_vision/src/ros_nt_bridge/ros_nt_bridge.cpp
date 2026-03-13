@@ -81,7 +81,11 @@ class RosNtBridge : public rclcpp::Node {
             visionPoseEstimate.transform.rotation.z
         };
 
-        visionPosePublisher.Set(msg, rosToRioTime(visionPoseEstimate.header.stamp));
+        // Convert into microseconds for Rio
+        int64_t estimateTimestampMicro = static_cast <int64_t>(visionPoseEstimate.header.stamp.sec)*1'000'000;
+        estimateTimestampMicro += static_cast <int64_t>(visionPoseEstimate.header.stamp.nanosec)/1'000;
+
+        visionPosePublisher.Set(msg,  estimateTimestampMicro);
     }
 
     void bridgeTransform() {
@@ -95,8 +99,9 @@ public:
     {
         const auto ntInstance = nt::NetworkTableInstance::GetDefault();
         // todo parameterize these strings
-        visionPoseTopic = ntInstance.GetDoubleArrayTopic("/vision/vision_pose_estimate");
-        fusedPoseTopic = ntInstance.GetDoubleArrayTopic("/vision/fused_pose_estimate");
+        const auto visionTable = ntInstance.GetTable("orinvision");
+        visionPoseTopic = visionTable->GetDoubleArrayTopic("vision_pose_estimate");
+        fusedPoseTopic = visionTable->GetDoubleArrayTopic("fused_pose_estimate");
 
         visionPosePublisher = visionPoseTopic.Publish();
         fusedPoseSubscriber = fusedPoseTopic.Subscribe({ });
