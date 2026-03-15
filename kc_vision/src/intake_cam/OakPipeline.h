@@ -3,7 +3,7 @@
 
 #include <depthai/depthai.hpp>
 
-#include "InferenceEngine.h"
+//#include "InferenceEngine.h"
 
 class OakPipeline {
     dai::Pipeline pipeline;
