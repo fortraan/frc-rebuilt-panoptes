@@ -21,10 +21,32 @@ find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
 find_package(depthai REQUIRED)
 
+# the following packages are platform-specific. The Jetson has these set up already,
+# but if you're building locally you'll need an Nvidia GPU, the CUDA toolkit, and
+# TensorRT installed.
+find_package(CUDA REQUIRED)
+
+find_library(NVINFER NAMES nvinfer REQUIRED)
+#find_library(NVPARSERS NAMES nvparsers REQUIRED)
+find_library(NVONNXPARSER NAMES nvonnxparser REQUIRED)
+find_library(NVINFERPLUGIN NAMES nvinfer_plugin REQUIRED)
+
+add_library(TensorRT INTERFACE)
+target_link_libraries(TensorRT INTERFACE
+        ${CUDA_LIBRARIES}
+        ${NVINFER}
+        #${NVPARSERS}
+        ${NVONNXPARSER}
+        ${NVINFERPLUGIN}
+)
+target_include_directories(TensorRT INTERFACE
+        ${CUDA_INCLUDE_DIRS}
+)
+
 # if you're on windows, you'll have to change this
-add_library(ONNX SHARED IMPORTED)
-set_property(TARGET ONNX PROPERTY IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libonnx.so")
-set_property(TARGET ONNX PROPERTY INTERFACE_INCLUDE_DIRECTORIES "/usr/include/")
+#add_library(ONNX SHARED IMPORTED)
+#set_property(TARGET ONNX PROPERTY IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libonnx.so")
+#set_property(TARGET ONNX PROPERTY INTERFACE_INCLUDE_DIRECTORIES "/usr/include/")
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -95,11 +117,20 @@ target_link_libraries(intake_cam PRIVATE
         rclcpp::rclcpp
         ament_index_cpp::ament_index_cpp
         depthai::core
-        ONNX
+        wpiutil # included for fmt because fmt::fmt doesn't work now??
+        TensorRT
         ${visualization_msgs_LIBRARIES}
 )
 
-install(TARGETS solve_pnp tag_consensus ros_nt_bridge
+add_executable(ObjectTracking src/object_tracking.cpp)
+target_include_directories(ObjectTracking PRIVATE ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(ObjectTracking PRIVATE
+        depthai::core
+#        ament_index_cpp::ament_index_cpp
+        ${OpenCV_LIBRARIES}
+)
+
+install(TARGETS solve_pnp tag_consensus ros_nt_bridge ObjectTracking
         DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS src/field_urdf_generator/apriltag_urdf_generator.py
