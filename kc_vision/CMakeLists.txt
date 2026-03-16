@@ -6,6 +6,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
+# silence warnings from wpilib using an ancient version of CMake
+set(CMAKE_WARN_DEPRECATED OFF)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)

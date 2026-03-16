@@ -285,6 +285,9 @@ void InferenceEngine::run() {
                 confidence, static_cast<uint32_t>(std::round(cls))
             );
         }
+
+        const auto postprocessingEnd = Clock::now();
+
         out.send(detectionsMsg);
 
         // performanceMetrics is assigned to as an atomic operation. PerformanceMetrics is trivially copyable, so
@@ -296,7 +299,7 @@ void InferenceEngine::run() {
             .frameAge = duration_cast<microseconds>(frameAge),
             .preprocessingTime = duration_cast<microseconds>(preprocessingEnd - start),
             .inferenceTime = duration_cast<microseconds>(inferenceEnd - preprocessingEnd),
-            .postprocessingTime = duration_cast<microseconds>(0s)
+            .postprocessingTime = duration_cast<microseconds>(postprocessingEnd - inferenceEnd)
         };
 
         passthrough.send(frame);
