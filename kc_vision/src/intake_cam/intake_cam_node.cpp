@@ -6,38 +6,74 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
-//#include <depthai/depthai.hpp>
+#include <depthai/depthai.hpp>
 
 #include "InferenceEngine.h"
+
+namespace {
+    // hardcoded for testing
+    constexpr auto ENGINE_FILE_PATH = "/home/kernelchaos/Code/FrcScorekeeper/learn/train5/weights/bnb-yolov26n-fp16+fp32.engine";
+}
+
+class NvRosLogger : public nvinfer1::ILogger {
+    rclcpp::Logger rosLogger;
+public:
+    explicit NvRosLogger(const rclcpp::Logger& logger) : rosLogger(logger) { }
+    void log(const Severity severity, const nvinfer1::AsciiChar* msg) noexcept override {
+        switch (severity) {
+            case Severity::kINTERNAL_ERROR:
+            case Severity::kERROR:
+                RCLCPP_ERROR(rosLogger, "%s", msg);
+                break;
+            case Severity::kWARNING:
+                RCLCPP_WARN(rosLogger, "%s", msg);
+                break;
+            case Severity::kINFO:
+                RCLCPP_INFO(rosLogger, "%s", msg);
+                break;
+            case Severity::kVERBOSE:
+                RCLCPP_DEBUG(rosLogger, "%s", msg);
+                break;
+        }
+    }
+};
 
 class IntakeCam : public rclcpp::Node {
     std::shared_ptr<rclcpp::Publisher<visualization_msgs::msg::Marker>> markerPublisher;
 
-    std::unique_ptr<InferenceEngine> inferenceEngine;
+    NvRosLogger nvLogger;
 
-    // dai::Pipeline pipeline;
-    // std::shared_ptr<dai::node::Camera> centerCam;
-    // std::shared_ptr<dai::node::Camera> leftCam;
-    // std::shared_ptr<dai::node::Camera> rightCam;
+    dai::Pipeline pipeline;
+    std::shared_ptr<dai::node::Camera> centerCam;
+    std::shared_ptr<dai::node::Camera> leftCam;
+    std::shared_ptr<dai::node::Camera> rightCam;
+    std::shared_ptr<InferenceEngine> inferenceEngine;
+    std::shared_ptr<dai::node::Display> display;
     // std::shared_ptr<dai::node::StereoDepth> stereo;
     // std::shared_ptr<dai::node::SpatialDetectionNetwork> detector;
     // std::shared_ptr<dai::node::ObjectTracker> objectTracker;
 
 public:
-    IntakeCam() : Node("intake_camera") {
+    IntakeCam() : Node("intake_camera"), nvLogger(get_logger().get_child("TensorRT")) {
         markerPublisher = create_publisher<visualization_msgs::msg::Marker>(
             "fuel_marker", rclcpp::SensorDataQoS()
         );
 
-        inferenceEngine = std::make_unique<InferenceEngine>(
-            *this, "/home/kernelchaos/Code/FrcScorekeeper/learn/train5/weights/bnb-yolov26n-fp16+fp32.engine"
-        );
-
         // camera inputs
-        // centerCam = pipeline.create<dai::node::Camera>()->build(dai::CameraBoardSocket::CAM_A);
-        // leftCam = pipeline.create<dai::node::Camera>()->build(dai::CameraBoardSocket::CAM_B);
-        // rightCam = pipeline.create<dai::node::Camera>()->build(dai::CameraBoardSocket::CAM_C);
-        //
+        centerCam = pipeline.create<dai::node::Camera>()->build(dai::CameraBoardSocket::CAM_A);
+        leftCam = pipeline.create<dai::node::Camera>()->build(dai::CameraBoardSocket::CAM_B);
+        rightCam = pipeline.create<dai::node::Camera>()->build(dai::CameraBoardSocket::CAM_C);
+
+        inferenceEngine = pipeline.create<InferenceEngine>(ENGINE_FILE_PATH, nvLogger);
+
+        const auto centerCamStream = centerCam->requestOutput(
+            { 640, 640 }, { }, dai::ImgResizeMode::STRETCH
+        );
+        centerCamStream->link(inferenceEngine->in);
+
+        display = pipeline.create<dai::node::Display>();
+        inferenceEngine->passthrough.link(display->input);
+
         // const auto leftCamOutput = leftCam->requestOutput({ 640, 400 });
         // const auto rightCamOutput = rightCam->requestOutput({ 640, 400 });
         //
@@ -60,6 +96,12 @@ public:
         // objectTracker->setDetectionLabelsToTrack({ 1 }); // only track robots
         // objectTracker->setTrackerType(dai::TrackerType::SHORT_TERM_IMAGELESS);
         // objectTracker->setTrackerIdAssignmentPolicy(dai::TrackerIdAssignmentPolicy::SMALLEST_ID);
+
+        pipeline.start();
+    }
+
+    ~IntakeCam() noexcept override {
+        pipeline.stop();
     }
 };
 
