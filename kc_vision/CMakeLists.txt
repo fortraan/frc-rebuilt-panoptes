@@ -27,6 +27,7 @@ find_package(kc_vision_msgs REQUIRED)
 # but if you're building locally you'll need an Nvidia GPU, the CUDA toolkit, and
 # TensorRT installed.
 find_package(CUDA REQUIRED)
+find_package(Thrust REQUIRED)
 
 find_library(NVINFER NAMES nvinfer REQUIRED)
 #find_library(NVPARSERS NAMES nvparsers REQUIRED)
@@ -128,6 +129,7 @@ target_link_libraries(intake_cam PRIVATE
         depthai::core
         wpiutil # included for fmt because fmt::fmt doesn't work now??
         TensorRT
+        Thrust::Thrust
         ${visualization_msgs_LIBRARIES}
 )
 
