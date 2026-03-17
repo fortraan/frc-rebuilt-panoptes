@@ -1,19 +1,22 @@
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <memory>
 
-#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/node.hpp>
+#include <rclcpp/executors/single_threaded_executor.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <visualization_msgs/msg/marker.hpp>
+#include <geometry_msgs/msg/point.hpp>
 
-#include <depthai/depthai.hpp>
+#include <NvInfer.h>
 
-#include "InferenceEngine.h"
-#include "utilities.h"
+#include "OakPipeline.h"
 
 namespace {
     // hardcoded for testing
-    constexpr auto ENGINE_FILE_PATH = "/home/kernelchaos/Code/FrcScorekeeper/learn/train5/weights/bnb-yolov26n-fp16+fp32.engine";
+    constexpr auto ENGINE_FILE_NAME = "bnb-yolov26n-fp16+fp32.engine";
+    constexpr auto WINDOW_NAME = "Raw Detections";
 }
 
 class NvRosLogger : public nvinfer1::ILogger {
@@ -43,98 +46,85 @@ class IntakeCam : public rclcpp::Node {
     std::shared_ptr<rclcpp::Publisher<visualization_msgs::msg::Marker>> markerPublisher;
 
     NvRosLogger nvLogger;
+    std::unique_ptr<OakPipeline> oakPipeline;
 
-    dai::Pipeline pipeline;
-    std::shared_ptr<dai::node::Camera> centerCam;
-    std::shared_ptr<dai::node::Camera> leftCam;
-    std::shared_ptr<dai::node::Camera> rightCam;
-    std::shared_ptr<InferenceEngine> inferenceEngine;
-    std::shared_ptr<dai::node::Display> display;
-    // std::shared_ptr<dai::node::StereoDepth> stereo;
-    // std::shared_ptr<dai::node::SpatialDetectionNetwork> detector;
-    // std::shared_ptr<dai::node::ObjectTracker> objectTracker;
-
-    std::shared_ptr<dai::MessageQueue> rawDetections;
-
-    std::shared_ptr<rclcpp::TimerBase> performanceLoggingTimer;
-
-    void onRawDetectionReceived(const std::shared_ptr<dai::ADatatype>& msg) {
-        KC_DEBUG_ASSERT_ROS(
-            get_logger(), msg->getDatatype() == dai::DatatypeEnum::ImgDetections, "Got wrong raw detection datatype!"
-        );
-        const auto detections = static_cast<const dai::ImgDetections&>(*msg);
-        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Detections: %lu", detections.detections.size());
+    rclcpp::Time daiTimestampToRosTime(const std::chrono::time_point<std::chrono::steady_clock> daiTimestamp) {
+        // current time in ros minus timestamp age. DAI uses steady_clock for timestamping.
+        return get_clock()->now() - (std::chrono::steady_clock::now() - daiTimestamp);
     }
 
-    void logPerformance() const {
-        const InferenceEngine::PerformanceMetrics performanceMetrics = inferenceEngine->performanceMetrics;
-        RCLCPP_INFO(
-            get_logger(),
-            "Frame age: %ld us, pre-processing time: %ld us, inference time: %ld us, post-processing time: %ld us",
-            performanceMetrics.frameAge.count(), performanceMetrics.preprocessingTime.count(),
-            performanceMetrics.inferenceTime.count(), performanceMetrics.postprocessingTime.count()
-        );
+    void onDetectionsReceived(const std::shared_ptr<dai::SpatialImgDetections>& detections) {
+
+    }
+
+    void onTracksReceived(const std::shared_ptr<dai::Tracklets>& tracks) {
+        if (tracks->tracklets.empty()) return;
+
+        visualization_msgs::msg::Marker marker;
+        marker.header.frame_id = "intake_camera";
+        marker.header.stamp = daiTimestampToRosTime(tracks->getTimestamp());
+        marker.ns = "intake_camera";
+        marker.id = 1;
+        marker.type = visualization_msgs::msg::Marker::CUBE_LIST;
+        marker.action = visualization_msgs::msg::Marker::ADD;
+        marker.pose.position.x = 0;
+        marker.pose.position.y = 0;
+        marker.pose.position.z = 0;
+        marker.pose.orientation.w = 1;
+        marker.pose.orientation.x = 0;
+        marker.pose.orientation.y = 0;
+        marker.pose.orientation.z = 0;
+        constexpr double FUEL_DIAMETER = 0.015; // m
+        marker.scale.x = 0.8;
+        marker.scale.y = 0.8;
+        marker.scale.z = 1.8;
+        marker.color.r = 252.0 / 255.0;
+        marker.color.g = 198.0 / 255.0;
+        marker.color.b =   3.0 / 255.0;
+        marker.color.a =   1;
+        marker.frame_locked = true;
+        using namespace std::chrono_literals;
+        marker.lifetime = rclcpp::Duration(100ms);
+        marker.points.reserve(tracks->tracklets.size());
+        for (const auto& track : tracks->tracklets) {
+            if (track.status == dai::Tracklet::TrackingStatus::LOST ||
+                track.status == dai::Tracklet::TrackingStatus::REMOVED) {
+                continue;
+            }
+            geometry_msgs::msg::Point point;
+            point.x = track.spatialCoordinates.x / 1000.0;
+            point.y = track.spatialCoordinates.y / 1000.0;
+            point.z = track.spatialCoordinates.z / 1000.0;
+            marker.points.push_back(point);
+        }
+        markerPublisher->publish(marker);
     }
 
 public:
     IntakeCam() : Node("intake_camera"), nvLogger(get_logger().get_child("TensorRT")) {
         markerPublisher = create_publisher<visualization_msgs::msg::Marker>(
-            "fuel_marker", rclcpp::SensorDataQoS()
+            "intake_camera_markers", rclcpp::SensorDataQoS()
         );
 
-        // camera inputs
-        centerCam = pipeline.create<dai::node::Camera>()->build(dai::CameraBoardSocket::CAM_A);
-        leftCam = pipeline.create<dai::node::Camera>()->build(dai::CameraBoardSocket::CAM_B);
-        rightCam = pipeline.create<dai::node::Camera>()->build(dai::CameraBoardSocket::CAM_C);
-
-        inferenceEngine = pipeline.create<InferenceEngine>(ENGINE_FILE_PATH, nvLogger);
-
-        const auto centerCamStream = centerCam->requestOutput(
-            { 640, 640 }, { }, dai::ImgResizeMode::STRETCH
+        oakPipeline = OakPipeline::create(
+            std::filesystem::path(ament_index_cpp::get_package_share_directory("kc_vision"))
+            / "resources" / ENGINE_FILE_NAME,
+            nvLogger
         );
-        centerCamStream->link(inferenceEngine->in);
-
-        //display = pipeline.create<dai::node::Display>();
-        //inferenceEngine->passthrough.link(display->input);
-
-        // const auto leftCamOutput = leftCam->requestOutput({ 640, 400 });
-        // const auto rightCamOutput = rightCam->requestOutput({ 640, 400 });
-        //
-        // stereo = pipeline.create<dai::node::StereoDepth>();
-        // leftCamOutput->link(stereo->left);
-        // rightCamOutput->link(stereo->right);
-        //
-        // const dai::NNArchive archive(
-        //     std::filesystem::path(ament_index_cpp::get_package_share_directory("kc_vision"))
-        //     / "resources" / "bnb-yolov9t-150.rvc2.tar.xz"
-        // );
-        // detector = pipeline.create<dai::node::SpatialDetectionNetwork>()->build(centerCam, stereo, archive);
-        // detector->setConfidenceThreshold(0.6f);
-        // detector->input.setBlocking(false);
-        // detector->setBoundingBoxScaleFactor(0.5f);
-        // detector->setDepthLowerThreshold(100);
-        // detector->setDepthUpperThreshold(5000);
-        //
-        // objectTracker = pipeline.create<dai::node::ObjectTracker>();
-        // objectTracker->setDetectionLabelsToTrack({ 1 }); // only track robots
-        // objectTracker->setTrackerType(dai::TrackerType::SHORT_TERM_IMAGELESS);
-        // objectTracker->setTrackerIdAssignmentPolicy(dai::TrackerIdAssignmentPolicy::SMALLEST_ID);
-
-        rawDetections = inferenceEngine->out.createOutputQueue();
-        rawDetections->addCallback([this](const std::shared_ptr<dai::ADatatype>& msg) {
-            onRawDetectionReceived(msg);
+        oakPipeline->addDetectionCallback([this](const auto& detections) {
+            onDetectionsReceived(detections);
+        });
+        oakPipeline->addTrackingCallback([this](const auto& tracks) {
+            onTracksReceived(tracks);
         });
 
-        pipeline.start();
+        oakPipeline->start();
 
-        using namespace std::chrono_literals;
-        performanceLoggingTimer = create_wall_timer(10s, [this] {
-            logPerformance();
-        });
+        RCLCPP_INFO(get_logger(), "Initialized successfully");
     }
 
     ~IntakeCam() noexcept override {
-        pipeline.stop();
+        oakPipeline->stop();
     }
 };
 
@@ -143,7 +133,9 @@ int main(const int argc, const char* const argv[]) {
 
     try {
         const auto node = std::make_shared<IntakeCam>();
-        rclcpp::spin(node);
+        rclcpp::executors::SingleThreadedExecutor executor;
+        executor.add_node(node);
+        executor.spin();
     } catch (const std::runtime_error& e) {
         std::cerr << "Error! " << e.what() << std::endl;
     }

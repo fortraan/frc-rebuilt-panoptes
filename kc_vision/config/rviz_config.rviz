@@ -4,11 +4,10 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /Status1
-        - /RobotModel1/Status1
-        - /RobotModel1/Description Topic1
+        - /Field Model1/Description Topic1
+        - /Image1/Topic1
       Splitter Ratio: 0.5
-    Tree Height: 542
+    Tree Height: 384
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -32,82 +31,158 @@ Visualization Manager:
   Displays:
     - Class: rviz_default_plugins/TF
       Enabled: true
-      Filter (blacklist): ""
-      Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
-        All Enabled: true
+        All Enabled: false
         apriltag_1:
-          Value: true
+          Value: false
         apriltag_10:
-          Value: true
+          Value: false
         apriltag_11:
-          Value: true
+          Value: false
         apriltag_12:
-          Value: true
+          Value: false
         apriltag_13:
-          Value: true
+          Value: false
         apriltag_14:
-          Value: true
+          Value: false
         apriltag_15:
-          Value: true
+          Value: false
         apriltag_16:
-          Value: true
+          Value: false
         apriltag_17:
-          Value: true
+          Value: false
         apriltag_18:
-          Value: true
+          Value: false
         apriltag_19:
-          Value: true
+          Value: false
         apriltag_2:
-          Value: true
+          Value: false
         apriltag_20:
-          Value: true
+          Value: false
         apriltag_21:
-          Value: true
+          Value: false
         apriltag_22:
-          Value: true
+          Value: false
         apriltag_23:
-          Value: true
+          Value: false
         apriltag_24:
-          Value: true
+          Value: false
         apriltag_25:
-          Value: true
+          Value: false
         apriltag_26:
-          Value: true
+          Value: false
         apriltag_27:
-          Value: true
+          Value: false
         apriltag_28:
-          Value: true
+          Value: false
         apriltag_29:
-          Value: true
+          Value: false
         apriltag_3:
-          Value: true
+          Value: false
         apriltag_30:
-          Value: true
+          Value: false
         apriltag_31:
-          Value: true
+          Value: false
         apriltag_32:
-          Value: true
+          Value: false
         apriltag_4:
-          Value: true
+          Value: false
         apriltag_5:
-          Value: true
+          Value: false
         apriltag_6:
-          Value: true
+          Value: false
         apriltag_7:
-          Value: true
+          Value: false
         apriltag_8:
-          Value: true
+          Value: false
         apriltag_9:
+          Value: false
+        chassis:
           Value: true
         field:
+          Value: false
+        front_camera:
+          Value: true
+        front_camera/robot_pose_estimate_13:0:
+          Value: true
+        front_camera/robot_pose_estimate_13:1:
+          Value: true
+        front_camera/robot_pose_estimate_14:0:
+          Value: true
+        front_camera/robot_pose_estimate_14:1:
+          Value: true
+        front_camera/robot_pose_estimate_15:0:
+          Value: true
+        front_camera/robot_pose_estimate_15:1:
+          Value: true
+        front_camera/robot_pose_estimate_17:0:
+          Value: true
+        front_camera/robot_pose_estimate_17:1:
+          Value: true
+        front_camera/robot_pose_estimate_19:0:
+          Value: true
+        front_camera/robot_pose_estimate_19:1:
+          Value: true
+        front_camera/robot_pose_estimate_20:0:
+          Value: true
+        front_camera/robot_pose_estimate_20:1:
+          Value: true
+        front_camera/robot_pose_estimate_21:0:
+          Value: true
+        front_camera/robot_pose_estimate_21:1:
+          Value: true
+        front_camera/robot_pose_estimate_24:0:
+          Value: true
+        front_camera/robot_pose_estimate_24:1:
+          Value: true
+        front_camera/robot_pose_estimate_31:0:
+          Value: true
+        front_camera/robot_pose_estimate_31:1:
+          Value: true
+        front_camera/robot_pose_estimate_3:0:
+          Value: true
+        front_camera/robot_pose_estimate_3:1:
+          Value: true
+        front_camera/robot_pose_estimate_4:0:
+          Value: true
+        front_camera/robot_pose_estimate_4:1:
+          Value: true
+        front_camera/robot_pose_estimate_6:0:
+          Value: true
+        front_camera/robot_pose_estimate_6:1:
+          Value: true
+        robot:
+          Value: false
+        tag36h11:13:
+          Value: true
+        tag36h11:14:
+          Value: true
+        tag36h11:15:
+          Value: true
+        tag36h11:17:
+          Value: true
+        tag36h11:19:
+          Value: true
+        tag36h11:20:
+          Value: true
+        tag36h11:21:
+          Value: true
+        tag36h11:24:
+          Value: true
+        tag36h11:3:
+          Value: true
+        tag36h11:31:
+          Value: true
+        tag36h11:4:
+          Value: true
+        tag36h11:6:
           Value: true
       Marker Scale: 1
-      Name: TF
+      Name: Detections
       Show Arrows: true
       Show Axes: true
-      Show Names: false
+      Show Names: true
       Tree:
         field:
           apriltag_1:
@@ -119,31 +194,55 @@ Visualization Manager:
           apriltag_12:
             {}
           apriltag_13:
-            {}
+            front_camera/robot_pose_estimate_13:0:
+              {}
+            front_camera/robot_pose_estimate_13:1:
+              {}
           apriltag_14:
-            {}
+            front_camera/robot_pose_estimate_14:0:
+              {}
+            front_camera/robot_pose_estimate_14:1:
+              {}
           apriltag_15:
-            {}
+            front_camera/robot_pose_estimate_15:0:
+              {}
+            front_camera/robot_pose_estimate_15:1:
+              {}
           apriltag_16:
             {}
           apriltag_17:
-            {}
+            front_camera/robot_pose_estimate_17:0:
+              {}
+            front_camera/robot_pose_estimate_17:1:
+              {}
           apriltag_18:
             {}
           apriltag_19:
-            {}
+            front_camera/robot_pose_estimate_19:0:
+              {}
+            front_camera/robot_pose_estimate_19:1:
+              {}
           apriltag_2:
             {}
           apriltag_20:
-            {}
+            front_camera/robot_pose_estimate_20:0:
+              {}
+            front_camera/robot_pose_estimate_20:1:
+              {}
           apriltag_21:
-            {}
+            front_camera/robot_pose_estimate_21:0:
+              {}
+            front_camera/robot_pose_estimate_21:1:
+              {}
           apriltag_22:
             {}
           apriltag_23:
             {}
           apriltag_24:
-            {}
+            front_camera/robot_pose_estimate_24:0:
+              {}
+            front_camera/robot_pose_estimate_24:1:
+              {}
           apriltag_25:
             {}
           apriltag_26:
@@ -155,25 +254,64 @@ Visualization Manager:
           apriltag_29:
             {}
           apriltag_3:
-            {}
+            front_camera/robot_pose_estimate_3:0:
+              {}
+            front_camera/robot_pose_estimate_3:1:
+              {}
           apriltag_30:
             {}
           apriltag_31:
-            {}
+            front_camera/robot_pose_estimate_31:0:
+              {}
+            front_camera/robot_pose_estimate_31:1:
+              {}
           apriltag_32:
             {}
           apriltag_4:
-            {}
+            front_camera/robot_pose_estimate_4:0:
+              {}
+            front_camera/robot_pose_estimate_4:1:
+              {}
           apriltag_5:
             {}
           apriltag_6:
-            {}
+            front_camera/robot_pose_estimate_6:0:
+              {}
+            front_camera/robot_pose_estimate_6:1:
+              {}
           apriltag_7:
             {}
           apriltag_8:
             {}
           apriltag_9:
             {}
+          robot:
+            chassis:
+              front_camera:
+                tag36h11:13:
+                  {}
+                tag36h11:14:
+                  {}
+                tag36h11:15:
+                  {}
+                tag36h11:17:
+                  {}
+                tag36h11:19:
+                  {}
+                tag36h11:20:
+                  {}
+                tag36h11:21:
+                  {}
+                tag36h11:24:
+                  {}
+                tag36h11:3:
+                  {}
+                tag36h11:31:
+                  {}
+                tag36h11:4:
+                  {}
+                tag36h11:6:
+                  {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -189,8 +327,7 @@ Visualization Manager:
         Value: /field_description
       Enabled: true
       Links:
-        All Links Enabled:
-          {}
+        All Links Enabled: true
         Expand Joint Details: false
         Expand Link Details: false
         Expand Tree: false
@@ -327,14 +464,314 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
+          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
-      Name: RobotModel
+      Name: Field Model
       TF Prefix: ""
       Update Interval: 0
       Value: true
       Visual Enabled: true
+    - Class: rviz_default_plugins/Image
+      Enabled: true
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Image
+      Normalize Range: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /front_camera/image_rect
+      Value: true
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: false
+        apriltag_1:
+          Value: true
+        apriltag_10:
+          Value: true
+        apriltag_11:
+          Value: true
+        apriltag_12:
+          Value: true
+        apriltag_13:
+          Value: true
+        apriltag_14:
+          Value: true
+        apriltag_15:
+          Value: true
+        apriltag_16:
+          Value: true
+        apriltag_17:
+          Value: true
+        apriltag_18:
+          Value: true
+        apriltag_19:
+          Value: true
+        apriltag_2:
+          Value: true
+        apriltag_20:
+          Value: true
+        apriltag_21:
+          Value: true
+        apriltag_22:
+          Value: true
+        apriltag_23:
+          Value: true
+        apriltag_24:
+          Value: true
+        apriltag_25:
+          Value: true
+        apriltag_26:
+          Value: true
+        apriltag_27:
+          Value: true
+        apriltag_28:
+          Value: true
+        apriltag_29:
+          Value: true
+        apriltag_3:
+          Value: true
+        apriltag_30:
+          Value: true
+        apriltag_31:
+          Value: true
+        apriltag_32:
+          Value: true
+        apriltag_4:
+          Value: true
+        apriltag_5:
+          Value: true
+        apriltag_6:
+          Value: true
+        apriltag_7:
+          Value: true
+        apriltag_8:
+          Value: true
+        apriltag_9:
+          Value: true
+        chassis:
+          Value: false
+        field:
+          Value: false
+        front_camera:
+          Value: false
+        front_camera/robot_pose_estimate_13:0:
+          Value: false
+        front_camera/robot_pose_estimate_13:1:
+          Value: false
+        front_camera/robot_pose_estimate_14:0:
+          Value: false
+        front_camera/robot_pose_estimate_14:1:
+          Value: false
+        front_camera/robot_pose_estimate_15:0:
+          Value: false
+        front_camera/robot_pose_estimate_15:1:
+          Value: false
+        front_camera/robot_pose_estimate_17:0:
+          Value: false
+        front_camera/robot_pose_estimate_17:1:
+          Value: false
+        front_camera/robot_pose_estimate_19:0:
+          Value: false
+        front_camera/robot_pose_estimate_19:1:
+          Value: false
+        front_camera/robot_pose_estimate_20:0:
+          Value: false
+        front_camera/robot_pose_estimate_20:1:
+          Value: false
+        front_camera/robot_pose_estimate_21:0:
+          Value: false
+        front_camera/robot_pose_estimate_21:1:
+          Value: false
+        front_camera/robot_pose_estimate_24:0:
+          Value: false
+        front_camera/robot_pose_estimate_24:1:
+          Value: false
+        front_camera/robot_pose_estimate_31:0:
+          Value: false
+        front_camera/robot_pose_estimate_31:1:
+          Value: false
+        front_camera/robot_pose_estimate_3:0:
+          Value: false
+        front_camera/robot_pose_estimate_3:1:
+          Value: false
+        front_camera/robot_pose_estimate_4:0:
+          Value: false
+        front_camera/robot_pose_estimate_4:1:
+          Value: false
+        front_camera/robot_pose_estimate_6:0:
+          Value: false
+        front_camera/robot_pose_estimate_6:1:
+          Value: false
+        robot:
+          Value: false
+        tag36h11:13:
+          Value: false
+        tag36h11:14:
+          Value: false
+        tag36h11:15:
+          Value: false
+        tag36h11:17:
+          Value: false
+        tag36h11:19:
+          Value: false
+        tag36h11:20:
+          Value: false
+        tag36h11:21:
+          Value: false
+        tag36h11:24:
+          Value: false
+        tag36h11:3:
+          Value: false
+        tag36h11:31:
+          Value: false
+        tag36h11:4:
+          Value: false
+        tag36h11:6:
+          Value: false
+      Marker Scale: 1
+      Name: Field Transforms
+      Show Arrows: false
+      Show Axes: true
+      Show Names: true
+      Tree:
+        field:
+          apriltag_1:
+            {}
+          apriltag_10:
+            {}
+          apriltag_11:
+            {}
+          apriltag_12:
+            {}
+          apriltag_13:
+            front_camera/robot_pose_estimate_13:0:
+              {}
+            front_camera/robot_pose_estimate_13:1:
+              {}
+          apriltag_14:
+            front_camera/robot_pose_estimate_14:0:
+              {}
+            front_camera/robot_pose_estimate_14:1:
+              {}
+          apriltag_15:
+            front_camera/robot_pose_estimate_15:0:
+              {}
+            front_camera/robot_pose_estimate_15:1:
+              {}
+          apriltag_16:
+            {}
+          apriltag_17:
+            front_camera/robot_pose_estimate_17:0:
+              {}
+            front_camera/robot_pose_estimate_17:1:
+              {}
+          apriltag_18:
+            {}
+          apriltag_19:
+            front_camera/robot_pose_estimate_19:0:
+              {}
+            front_camera/robot_pose_estimate_19:1:
+              {}
+          apriltag_2:
+            {}
+          apriltag_20:
+            front_camera/robot_pose_estimate_20:0:
+              {}
+            front_camera/robot_pose_estimate_20:1:
+              {}
+          apriltag_21:
+            front_camera/robot_pose_estimate_21:0:
+              {}
+            front_camera/robot_pose_estimate_21:1:
+              {}
+          apriltag_22:
+            {}
+          apriltag_23:
+            {}
+          apriltag_24:
+            front_camera/robot_pose_estimate_24:0:
+              {}
+            front_camera/robot_pose_estimate_24:1:
+              {}
+          apriltag_25:
+            {}
+          apriltag_26:
+            {}
+          apriltag_27:
+            {}
+          apriltag_28:
+            {}
+          apriltag_29:
+            {}
+          apriltag_3:
+            front_camera/robot_pose_estimate_3:0:
+              {}
+            front_camera/robot_pose_estimate_3:1:
+              {}
+          apriltag_30:
+            {}
+          apriltag_31:
+            front_camera/robot_pose_estimate_31:0:
+              {}
+            front_camera/robot_pose_estimate_31:1:
+              {}
+          apriltag_32:
+            {}
+          apriltag_4:
+            front_camera/robot_pose_estimate_4:0:
+              {}
+            front_camera/robot_pose_estimate_4:1:
+              {}
+          apriltag_5:
+            {}
+          apriltag_6:
+            front_camera/robot_pose_estimate_6:0:
+              {}
+            front_camera/robot_pose_estimate_6:1:
+              {}
+          apriltag_7:
+            {}
+          apriltag_8:
+            {}
+          apriltag_9:
+            {}
+          robot:
+            chassis:
+              front_camera:
+                tag36h11:13:
+                  {}
+                tag36h11:14:
+                  {}
+                tag36h11:15:
+                  {}
+                tag36h11:17:
+                  {}
+                tag36h11:19:
+                  {}
+                tag36h11:20:
+                  {}
+                tag36h11:21:
+                  {}
+                tag36h11:24:
+                  {}
+                tag36h11:3:
+                  {}
+                tag36h11:31:
+                  {}
+                tag36h11:4:
+                  {}
+                tag36h11:6:
+                  {}
+      Update Interval: 0
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -381,25 +818,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 10
+      Distance: 15.72941780090332
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: 4.127188205718994
+        Y: -1.618807077407837
+        Z: -2.352937936782837
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.785398006439209
+      Pitch: 0.5103980898857117
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.785398006439209
+      Yaw: 1.3553979396820068
     Saved: ~
 Window Geometry:
   Displays:
@@ -407,7 +844,9 @@ Window Geometry:
   Height: 846
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd000000040000000000000156000002acfc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005d00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003f000002ac000000cc00fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f000002acfc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073010000003f000002ac000000a900fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004b00000003efc0100000002fb0000000800540069006d00650100000000000004b00000026f00fffffffb0000000800540069006d006501000000000000045000000000000000000000023f000002ac00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Image:
+    collapsed: false
+  QMainWindow State: 000000ff00000000fd00000004000000000000016b000002b0fc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003d0000020b000000c900fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d006100670065010000024e0000009f0000002800ffffff000000010000010f000002b0fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073010000003d000002b0000000a400fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004b00000003efc0100000002fb0000000800540069006d00650100000000000004b0000002fb00fffffffb0000000800540069006d006501000000000000045000000000000000000000022a000002b000000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -417,5 +856,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1200
-  X: 60
-  Y: 60
+  X: 420
+  Y: 139
