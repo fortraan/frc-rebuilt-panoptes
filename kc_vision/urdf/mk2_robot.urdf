@@ -20,6 +20,15 @@
         </visual>
     </link>
 
+    <link name="intake_camera">
+        <visual>
+            <origin xyz="0 0 -0.01"/>
+            <geometry>
+                <box size="0.08 0.04 0.02"/>
+            </geometry>
+        </visual>
+    </link>
+
     <joint name="robot_to_chassis" type="fixed">
         <parent link="robot"/>
         <child link="chassis"/>
@@ -30,5 +39,11 @@
         <child link="front_camera"/>
         <origin xyz="0 0 0.5"/>
         <!--<origin xyz="0.5 0 0.5" rpy="-1.57079 0 -1.57079"/>-->
+    </joint>
+
+    <joint name="chassis_to_intake_camera" type="fixed">
+        <parent link="chassis"/>
+        <child link="intake_camera"/>
+        <origin xyz="0 0.1 0.5" rpy="-1.57079 0 -1.57079"/>
     </joint>
 </robot>

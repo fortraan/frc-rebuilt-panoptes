@@ -30,7 +30,6 @@ find_package(CUDA REQUIRED)
 find_package(Thrust REQUIRED)
 
 find_library(NVINFER NAMES nvinfer REQUIRED)
-#find_library(NVPARSERS NAMES nvparsers REQUIRED)
 find_library(NVONNXPARSER NAMES nvonnxparser REQUIRED)
 find_library(NVINFERPLUGIN NAMES nvinfer_plugin REQUIRED)
 
@@ -38,7 +37,6 @@ add_library(TensorRT INTERFACE)
 target_link_libraries(TensorRT INTERFACE
         ${CUDA_LIBRARIES}
         ${NVINFER}
-        #${NVPARSERS}
         ${NVONNXPARSER}
         ${NVINFERPLUGIN}
 )
@@ -114,6 +112,7 @@ add_executable(intake_cam
 target_include_directories(intake_cam PRIVATE
         src/intake_cam
         ${visualization_msgs_INCLUDE_DIRS}
+        ${OpenCV_INCLUDE_DIRS}
 )
 target_link_libraries(intake_cam PRIVATE
         common
@@ -124,6 +123,7 @@ target_link_libraries(intake_cam PRIVATE
         TensorRT
         Thrust::Thrust
         ${visualization_msgs_LIBRARIES}
+        ${OpenCV_LIBRARIES}
 )
 
 add_executable(ObjectTracking src/object_tracking.cpp)
@@ -134,7 +134,7 @@ target_link_libraries(ObjectTracking PRIVATE
         ${OpenCV_LIBRARIES}
 )
 
-install(TARGETS solve_pnp tag_consensus ros_nt_bridge ObjectTracking
+install(TARGETS solve_pnp tag_consensus ros_nt_bridge intake_cam ObjectTracking
         DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS src/field_urdf_generator/apriltag_urdf_generator.py
