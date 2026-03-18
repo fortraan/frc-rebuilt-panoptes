@@ -1,9 +1,9 @@
 #include <chrono>
+#include <unordered_map>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <list>
 #include <random>
 #include <ranges>
 
@@ -15,7 +15,7 @@
 
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 
-#include "ransac.h"
+#include "apecs.h"
 #include "utilities.h"
 
 using namespace std::chrono_literals;
@@ -23,14 +23,7 @@ using namespace std::chrono_literals;
 using TransformStamped = geometry_msgs::msg::TransformStamped;
 
 namespace {
-    Pose transformToPose(const TransformStamped& transform) {
-        return {
-            .x = transform.transform.translation.x,
-            .y = transform.transform.translation.y,
-            // todo swing twist decomposition
-            .heading = 0
-        };
-    }
+    const std::string FIXED_FRAME = "field";
 }
 
 class TagConsensus : public rclcpp::Node {
@@ -43,111 +36,71 @@ class TagConsensus : public rclcpp::Node {
     std::string consensusFrameId;
 
     std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>> posePublisher;
-
     std::shared_ptr<rclcpp::TimerBase> timer;
 
+    std::unordered_map<std::string, Observation> observations;
+
+    bool shouldReject(const geometry_msgs::msg::TransformStamped& transform, const rclcpp::Time& now) const {
+        if (now - transform.header.stamp > maxEstimateAge) return true;
+        if (transform.transform.translation.z > 1) return true;
+        return false;
+    }
+
     void update() {
-        // todo average pose times
-        const rclcpp::Time now = get_clock()->now();
-
-        std::list<TransformStamped> estimates;
-
-        // get all estimates
-        for (const auto& frameId : buffer.getAllFrameNames()) {
-            // filter to only frame IDs under our prefixes
-            if (std::ranges::any_of(posePrefixes, [&frameId](const std::string& prefix) {
-                return frameId.starts_with(prefix);
-            })) {
-                try {
-                    // look up the current transform from "field" to the frame in question
-                    estimates.emplace_back(buffer.lookupTransform(
-                        "field", frameId, tf2::TimePointZero, 5ms
-                    ));
-                } catch (const tf2::TransformException& exception) {
-                    RCLCPP_ERROR_THROTTLE(
-                        get_logger(), *get_clock(), 200,
-                        "Unable to lookup transform from field to %s: %s",
-                        frameId.c_str(), exception.what()
-                    );
+        const auto now = get_clock()->now();
+        observations.clear();
+        for (const auto& prefix : posePrefixes) {
+            const auto primaryId = prefix + "/primary";
+            const auto secondaryId = prefix + "/secondary";
+            if (buffer.canTransform(FIXED_FRAME, primaryId, tf2::TimePointZero) &&
+                buffer.canTransform(FIXED_FRAME, secondaryId, tf2::TimePointZero)) {
+                const auto primaryTransform = buffer.lookupTransform(
+                    FIXED_FRAME, primaryId, tf2::TimePointZero
+                );
+                const auto secondaryTransform = buffer.lookupTransform(
+                    FIXED_FRAME, secondaryId, tf2::TimePointZero
+                );
+                const auto primaryRejected = shouldReject(primaryTransform, now);
+                const auto secondaryRejected = shouldReject(secondaryTransform, now);
+                if (primaryRejected && secondaryRejected) {
+                    // both transforms rejected. don't do anything with this observation.
+                    continue;
+                }
+                if (primaryRejected && !secondaryRejected) {
+                    // use only the secondary transform. since the primary transform was rejected,
+                    // the secondary transform is promoted to primary.
+                    observations.emplace(prefix, Observation {
+                        secondaryTransform, std::nullopt
+                    });
+                }
+                if (!primaryRejected && secondaryRejected) {
+                    // use only the primary transform
+                    observations.emplace(prefix, Observation {
+                        primaryTransform, std::nullopt
+                    });
+                }
+                if (!primaryRejected && !secondaryRejected) {
+                    // use both
+                    observations.emplace(prefix, Observation {
+                        primaryTransform, secondaryTransform
+                    });
                 }
             }
         }
 
-        const int originalNumEstimates = static_cast<int>(estimates.size());
-        int rejectedForAge = 0, rejectedForObviousOutlier = 0;
-        // reject obvious outliers and estimates that are too old
-        estimates.remove_if([&](const TransformStamped& transform) {
-            const rclcpp::Duration estimateAge = now - transform.header.stamp;
-            RCLCPP_DEBUG_THROTTLE(
-                get_logger(), *get_clock(), 1000,
-                "Estimate age: %ld ms Threshold: %ld ms",
-                estimateAge.to_chrono<std::chrono::milliseconds>().count(),
-                maxEstimateAge.to_chrono<std::chrono::milliseconds>().count()
-            );
-            if (estimateAge > maxEstimateAge) {
-                // this estimate is too old. reject it.
-                rejectedForAge++;
-                return true;
-            }
-
-            if (transform.transform.translation.z > 1) {
-                // above 1 meter. unless the robot suddenly learned how to hover,
-                // this transform is probably invalid.
-                rejectedForObviousOutlier++;
-                return true;
-            }
-
-            // todo other checks
-
-            return false;
+        // todo change this to avoid copying
+        std::vector<Observation> observationVector;
+        observationVector.reserve(observations.size());
+        std::ranges::transform(observations, std::back_inserter(observationVector), [](const auto& pair) {
+            return pair.second;
         });
+        auto consensus = apecs(observationVector);
 
-        RCLCPP_DEBUG_THROTTLE(
-            get_logger(), *get_clock(), 500,
-            "Out of %d poses, rejected %d old poses and %d obvious outliers, leaving %d poses for RANSAC",
-            originalNumEstimates, rejectedForAge, rejectedForObviousOutlier,
-            originalNumEstimates - rejectedForAge - rejectedForObviousOutlier
-        );
-
-        if (estimates.empty()) {
-            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "No poses available for consensus!");
-            return;
+        if (consensus) {
+            consensus->mean.child_frame_id = consensusFrameId;
+            broadcaster.sendTransform(consensus->mean);
+            // todo send variance
         }
-
-        // project transforms into 2d poses
-        std::vector<Pose> poses;
-        poses.reserve(estimates.size());
-        std::ranges::transform(estimates, std::back_inserter(poses), transformToPose);
-
-        const auto [x, y, heading] = ransac(poses);
-
-        geometry_msgs::msg::TransformStamped transform;
-        transform.header.stamp = now;
-        transform.header.frame_id = "field";
-        transform.child_frame_id = consensusFrameId;
-        transform.transform.translation.x = x.mean;
-        transform.transform.translation.y = y.mean;
-        transform.transform.translation.z = 0;
-        // todo swing twist decomp
-        transform.transform.rotation.w = std::cos(heading.mean / 2);
-        transform.transform.rotation.x = 0;
-        transform.transform.rotation.y = 0;
-        transform.transform.rotation.z = std::sin(heading.mean / 2);
-
-        broadcaster.sendTransform(transform);
-
-        geometry_msgs::msg::PoseWithCovarianceStamped poseWithCovariance;
-        poseWithCovariance.header.stamp = now;
-        poseWithCovariance.header.frame_id = "field";
-        poseWithCovariance.pose.pose.position.x = x.mean;
-        poseWithCovariance.pose.pose.position.y = y.mean;
-        poseWithCovariance.pose.pose.position.z = 0;
-        poseWithCovariance.pose.pose.orientation = transform.transform.rotation;
-        poseWithCovariance.pose.covariance[0 * 6 + 0] = std::pow(x.standardDeviation, 2); // x variance
-        poseWithCovariance.pose.covariance[1 * 6 + 1] = std::pow(y.standardDeviation, 2); // y variance
-        poseWithCovariance.pose.covariance[5 * 6 + 5] = std::pow(heading.standardDeviation, 2); // heading variance
-
-        posePublisher->publish(poseWithCovariance);
     }
 
 public:
