@@ -20,6 +20,7 @@ find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
 find_package(depthai REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 # if you're on windows, you'll have to change this
 add_library(ONNX SHARED IMPORTED)
@@ -69,6 +70,7 @@ target_link_libraries(tag_consensus PRIVATE
         common
         rclcpp::rclcpp
         tf2_ros::tf2_ros
+        Eigen3::Eigen
 )
 
 add_executable(ros_nt_bridge src/ros_nt_bridge/ros_nt_bridge.cpp)
