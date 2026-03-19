@@ -67,6 +67,16 @@ class SolvePnP : public rclcpp::Node {
     cv::Matx33d cameraMatrix;
     cv::Mat distortionCoefficients;
 
+    geometry_msgs::msg::Transform cvToRosTform(const cv::Matx31d& translation, const cv::Matx31d& rotation) const {
+        const tf2::Transform cameraToTag {
+            rodriguesToQuaternion(rotation),
+            { translation.val[0], translation.val[1], translation.val[2] }
+        };
+        // todo this doesn't seem to be working quite right
+        const tf2::Transform tagToRobot = (robotToCamera * cameraToTag).inverse();
+        return tf2::toMsg(tagToRobot);
+    }
+
     void onReceiveCameraInfo(const sensor_msgs::msg::CameraInfo& cameraInfo) {
         std::lock_guard lock(intrinsicsMutex);
 
@@ -129,9 +139,11 @@ class SolvePnP : public rclcpp::Node {
 
             // compute possible poses
             std::vector<cv::Matx31d> translations, rotations;
+            std::vector<double> reprojectionErrors;
             const int numPoses = cv::solvePnPGeneric(
                 TAG_3D_POINTS, imgPoints, cameraMatrix, distortionCoefficients,
-                rotations, translations, false, cv::SOLVEPNP_IPPE_SQUARE
+                rotations, translations, false, cv::SOLVEPNP_IPPE_SQUARE,
+                cv::noArray(), cv::noArray(), reprojectionErrors
             );
 
             KC_DEBUG_ASSERT_ROS(
@@ -144,33 +156,27 @@ class SolvePnP : public rclcpp::Node {
                 static_cast<int>(rotations.size()) == numPoses,
                 "Incorrect number of rotations!"
             );
+            KC_DEBUG_ASSERT_ROS(
+                get_logger(),
+                static_cast<int>(reprojectionErrors.size()) == numPoses,
+                "Incorrect number of reprojection errors!"
+            );
+            KC_DEBUG_ASSERT_ROS(get_logger(), numPoses == 2, "Incorrect number of returns from IPPE-Square!");
 
-            for (int i = 0; i < numPoses; i++) {
-                tf2::Transform cameraToTag {
-                    rodriguesToQuaternion(rotations[i]),
-                    { translations[i].val[0], translations[i].val[1], translations[i].val[2] }
-                };
-                // todo this isn't working
-                tf2::Transform tagToRobot = (robotToCamera * cameraToTag).inverse();
+            const bool firstIsBetter = reprojectionErrors[0] < reprojectionErrors[1];
+            geometry_msgs::msg::TransformStamped msg;
+            msg.header.frame_id = fmt::format("apriltag_{}", detection.id);
+            // tf2 will automatically handle interpolating between times when calculating transforms, so the
+            // timestamp of the transform needs to reflect when the measurement was taken.
+            msg.header.stamp = detectionTime;
 
-                // publish transform
-                geometry_msgs::msg::TransformStamped transformMsg;
+            msg.child_frame_id = fmt::format("{}{}/primary", posePrefix, msg.header.frame_id);
+            msg.transform = cvToRosTform(translations[firstIsBetter ? 0 : 1], rotations[firstIsBetter ? 0 : 1]);
+            broadcaster.sendTransform(msg);
 
-                // static frame of the tag on the field
-                transformMsg.header.frame_id = fmt::format("apriltag_{}", detection.id);
-                // dynamic frame of the estimate of the camera's pose
-                transformMsg.child_frame_id = fmt::format(
-                    "{}robot_pose_estimate_{}:{}", posePrefix, detection.id, i
-                );
-                // tf2 will automatically handle interpolating between times when calculating transforms, so the
-                // timestamp of the transform needs to reflect when the measurement was taken.
-                transformMsg.header.stamp = detectionTime;
-
-                transformMsg.transform = tf2::toMsg(tagToRobot);
-
-                // send it!
-                broadcaster.sendTransform(transformMsg);
-            }
+            msg.child_frame_id = fmt::format("{}{}/secondary", posePrefix, msg.header.frame_id);
+            msg.transform = cvToRosTform(translations[firstIsBetter ? 1 : 0], rotations[firstIsBetter ? 1 : 0]);
+            broadcaster.sendTransform(msg);
         }
     }
 
