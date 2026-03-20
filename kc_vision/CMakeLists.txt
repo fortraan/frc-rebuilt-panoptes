@@ -117,6 +117,10 @@ add_executable(intake_cam
         src/intake_cam/intake_cam_node.cpp
         src/intake_cam/OakPipeline.cpp
         src/intake_cam/InferenceEngine.cpp
+        src/intake_cam/DepthDisplay.cpp
+        src/intake_cam/DepthDisplay.h
+        src/intake_cam/DetectionsDisplay.cpp
+        src/intake_cam/DetectionsDisplay.h
 )
 target_include_directories(intake_cam PRIVATE
         src/intake_cam
