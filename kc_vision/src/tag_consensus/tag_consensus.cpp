@@ -5,22 +5,21 @@
 #include <string>
 #include <vector>
 #include <random>
-#include <ranges>
 
 #include <rclcpp/rclcpp.hpp>
 
 #include <tf2_ros/buffer.hpp>
 #include <tf2_ros/transform_listener.hpp>
 #include <tf2_ros/transform_broadcaster.hpp>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <kc_vision_msgs/msg/observation.hpp>
 
 #include "apecs.h"
 #include "utilities.h"
 
 using namespace std::chrono_literals;
-
-using TransformStamped = geometry_msgs::msg::TransformStamped;
 
 namespace {
     const std::string FIXED_FRAME = "field";
@@ -31,75 +30,104 @@ class TagConsensus : public rclcpp::Node {
     tf2_ros::TransformListener listener;
     tf2_ros::TransformBroadcaster broadcaster;
 
-    std::vector<std::string> posePrefixes;
+    std::unordered_map<std::string, std::shared_ptr<kc_vision_msgs::msg::Observation>> observations;
+
     rclcpp::Duration maxEstimateAge;
     std::string consensusFrameId;
 
     std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>> posePublisher;
+    std::shared_ptr<rclcpp::Subscription<kc_vision_msgs::msg::Observation>> observationSubscriber;
     std::shared_ptr<rclcpp::TimerBase> timer;
 
-    std::unordered_map<std::string, Observation> observations;
+    void onObservationReceived(std::unique_ptr<kc_vision_msgs::msg::Observation> observation) {
+        observations[observation->id] = std::move(observation);
+    }
 
-    bool shouldReject(const geometry_msgs::msg::TransformStamped& transform, const rclcpp::Time& now) const {
-        if (now - transform.header.stamp > maxEstimateAge) return true;
-        if (transform.transform.translation.z > 1) return true;
+    static bool shouldReject(const geometry_msgs::msg::Pose& pose) {
+        if (pose.position.z > 1) return true;
         return false;
     }
 
     void update() {
         const auto now = get_clock()->now();
-        observations.clear();
-        for (const auto& prefix : posePrefixes) {
-            const auto primaryId = prefix + "/primary";
-            const auto secondaryId = prefix + "/secondary";
-            if (buffer.canTransform(FIXED_FRAME, primaryId, tf2::TimePointZero) &&
-                buffer.canTransform(FIXED_FRAME, secondaryId, tf2::TimePointZero)) {
-                const auto primaryTransform = buffer.lookupTransform(
-                    FIXED_FRAME, primaryId, tf2::TimePointZero
+
+        std::vector<Observation> apecsObservations;
+
+        auto iter = observations.begin();
+        const auto end = observations.end();
+        while  (iter != end) {
+            const auto observation = iter->second;
+            if (now - observation->header.stamp > maxEstimateAge) {
+                // this observation is too old and should be discarded.
+                iter = observations.erase(iter);
+                continue;
+            }
+
+            // copy into stamped poses because tf2 *INSISTS* on having stamps
+            geometry_msgs::msg::PoseStamped primaryTagRelative, secondaryTagRelative;
+            primaryTagRelative.header = observation->header;
+            primaryTagRelative.pose = observation->primary;
+            secondaryTagRelative.header = observation->header;
+            secondaryTagRelative.pose = observation->secondary;
+
+            geometry_msgs::msg::PoseStamped primary, secondary;
+            buffer.transform(
+                primaryTagRelative, primary, FIXED_FRAME,
+                tf2::TimePointZero, observation->header.frame_id
+            );
+            buffer.transform(
+                secondaryTagRelative, secondary, FIXED_FRAME,
+                tf2::TimePointZero, observation->header.frame_id
+            );
+
+            const auto primaryRejected = shouldReject(primary.pose);
+            const auto secondaryRejected = shouldReject(secondary.pose);
+
+            if (primaryRejected && secondaryRejected) {
+                // both transforms rejected. don't do anything with this observation.
+                continue;
+            }
+            if (primaryRejected && !secondaryRejected) {
+                // use only the secondary transform. since the primary transform was rejected,
+                // the secondary transform is promoted to primary.
+                apecsObservations.emplace_back(
+                    observation->header.stamp, secondary.pose, std::nullopt
                 );
-                const auto secondaryTransform = buffer.lookupTransform(
-                    FIXED_FRAME, secondaryId, tf2::TimePointZero
+            }
+            if (!primaryRejected && secondaryRejected) {
+                // use only the primary transform
+                apecsObservations.emplace_back(
+                    observation->header.stamp, primary.pose, std::nullopt
                 );
-                const auto primaryRejected = shouldReject(primaryTransform, now);
-                const auto secondaryRejected = shouldReject(secondaryTransform, now);
-                if (primaryRejected && secondaryRejected) {
-                    // both transforms rejected. don't do anything with this observation.
-                    continue;
-                }
-                if (primaryRejected && !secondaryRejected) {
-                    // use only the secondary transform. since the primary transform was rejected,
-                    // the secondary transform is promoted to primary.
-                    observations.emplace(prefix, Observation {
-                        secondaryTransform, std::nullopt
-                    });
-                }
-                if (!primaryRejected && secondaryRejected) {
-                    // use only the primary transform
-                    observations.emplace(prefix, Observation {
-                        primaryTransform, std::nullopt
-                    });
-                }
-                if (!primaryRejected && !secondaryRejected) {
-                    // use both
-                    observations.emplace(prefix, Observation {
-                        primaryTransform, secondaryTransform
-                    });
-                }
+            }
+            if (!primaryRejected && !secondaryRejected) {
+                // use both
+                apecsObservations.emplace_back(
+                    observation->header.stamp, primary.pose, secondary.pose
+                );
             }
         }
 
-        // todo change this to avoid copying
-        std::vector<Observation> observationVector;
-        observationVector.reserve(observations.size());
-        std::ranges::transform(observations, std::back_inserter(observationVector), [](const auto& pair) {
-            return pair.second;
-        });
-        auto consensus = apecs(observationVector);
-
+        const auto consensus = apecs(apecsObservations);
         if (consensus) {
-            consensus->mean.child_frame_id = consensusFrameId;
-            broadcaster.sendTransform(consensus->mean);
-            // todo send variance
+            geometry_msgs::msg::TransformStamped transform;
+            transform.header.stamp = consensus->time;
+            transform.header.frame_id = FIXED_FRAME;
+            transform.child_frame_id = consensusFrameId;
+            transform.transform.translation.x = consensus->mean.position.x;
+            transform.transform.translation.y = consensus->mean.position.y;
+            transform.transform.translation.z = consensus->mean.position.z;
+            transform.transform.rotation = consensus->mean.orientation;
+            broadcaster.sendTransform(transform);
+
+            geometry_msgs::msg::PoseWithCovarianceStamped poseWithCovariance;
+            poseWithCovariance.header = transform.header;
+            poseWithCovariance.pose.pose = consensus->mean;
+            Eigen::Matrix<double, 6, 6, Eigen::RowMajor> covariance = consensus->variance.asDiagonal();
+            std::ranges::copy_n(covariance.data(), 36, poseWithCovariance.pose.covariance.begin());
+            posePublisher->publish(poseWithCovariance);
+        } else {
+            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "APECS failed to reach consensus!");
         }
     }
 
@@ -107,14 +135,6 @@ public:
     TagConsensus() : Node("tag_consensus"), buffer(get_clock(), 10s), listener(buffer, this),
         broadcaster(this), maxEstimateAge(0s)
     {
-        posePrefixes = declare_parameter("pose_prefixes", std::vector<std::string>());
-        if (posePrefixes.empty()) {
-            constexpr auto msg = "pose_prefixes is empty. There needs to be at least 1 prefix"
-                                 "for there to be any kind of consensus!";
-            RCLCPP_FATAL(get_logger(), msg);
-            throw std::runtime_error(msg);
-        }
-
         maxEstimateAge = std::chrono::milliseconds(declare_parameter<int64_t>(
             "max_estimate_age_ms", 60
         ));
@@ -132,6 +152,13 @@ public:
 
         posePublisher = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
             consensusFrameId, rclcpp::SensorDataQoS()
+        );
+
+        observationSubscriber = create_subscription<kc_vision_msgs::msg::Observation>(
+            "/observations", rclcpp::SensorDataQoS(),
+            [this](std::unique_ptr<kc_vision_msgs::msg::Observation> observation) {
+                onObservationReceived(std::move(observation));
+            }
         );
 
         timer = create_wall_timer(updateInterval, [this] { update(); });

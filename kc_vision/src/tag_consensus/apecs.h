@@ -4,7 +4,8 @@
 #include <optional>
 #include <vector>
 
-#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <rclcpp/time.hpp>
+#include <geometry_msgs/msg/pose.hpp>
 
 #include <Eigen/Dense>
 
@@ -13,12 +14,14 @@ struct Observation {
     // optionally have a second estimate. this secondary estimate may be used in situations where
     // one of the estimates cannot be rejected as an obvious outlier. if 2 estimates are provided,
     // then the primary estimate shall be the estimate with lower reprojection error.
-    geometry_msgs::msg::TransformStamped primaryEstimate;
-    std::optional<geometry_msgs::msg::TransformStamped> secondaryEstimate;
+    rclcpp::Time time;
+    geometry_msgs::msg::Pose primaryEstimate;
+    std::optional<geometry_msgs::msg::Pose> secondaryEstimate;
 };
 
 struct Model {
-    geometry_msgs::msg::TransformStamped mean; // todo change this to Eigen types
+    rclcpp::Time time;
+    geometry_msgs::msg::Pose mean;
     Eigen::Vector<double, 6> variance;
 };
 

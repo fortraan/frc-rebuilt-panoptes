@@ -18,6 +18,7 @@
 #include <apriltag_msgs/msg/april_tag_detection_array.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
+#include <kc_vision_msgs/msg/observation.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/calib3d.hpp>
@@ -56,6 +57,8 @@ class SolvePnP : public rclcpp::Node {
 
     std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::CameraInfo>> cameraInfoSubscription;
     std::shared_ptr<rclcpp::Subscription<apriltag_msgs::msg::AprilTagDetectionArray>> detectionsSubscription;
+
+    std::shared_ptr<rclcpp::Publisher<kc_vision_msgs::msg::Observation>> observationPublisher;
 
     std::string cameraFrameId;
     std::string posePrefix;
@@ -164,19 +167,30 @@ class SolvePnP : public rclcpp::Node {
             KC_DEBUG_ASSERT_ROS(get_logger(), numPoses == 2, "Incorrect number of returns from IPPE-Square!");
 
             const bool firstIsBetter = reprojectionErrors[0] < reprojectionErrors[1];
-            geometry_msgs::msg::TransformStamped msg;
-            msg.header.frame_id = fmt::format("apriltag_{}", detection.id);
-            // tf2 will automatically handle interpolating between times when calculating transforms, so the
-            // timestamp of the transform needs to reflect when the measurement was taken.
-            msg.header.stamp = detectionTime;
+            const auto primary = cvToRosTform(translations[firstIsBetter ? 0 : 1], rotations[firstIsBetter ? 0 : 1]);
+            const auto secondary = cvToRosTform(translations[firstIsBetter ? 1 : 0], rotations[firstIsBetter ? 1 : 0]);
 
-            msg.child_frame_id = fmt::format("{}{}/primary", posePrefix, msg.header.frame_id);
-            msg.transform = cvToRosTform(translations[firstIsBetter ? 0 : 1], rotations[firstIsBetter ? 0 : 1]);
-            broadcaster.sendTransform(msg);
+            kc_vision_msgs::msg::Observation observation;
+            observation.header.frame_id = fmt::format("apriltag_{}", detection.id);
+            observation.header.stamp = detectionTime;
+            tf2::convert(primary, observation.primary);
+            tf2::convert(secondary, observation.secondary);
+            observationPublisher->publish(observation);
 
-            msg.child_frame_id = fmt::format("{}{}/secondary", posePrefix, msg.header.frame_id);
-            msg.transform = cvToRosTform(translations[firstIsBetter ? 1 : 0], rotations[firstIsBetter ? 1 : 0]);
-            broadcaster.sendTransform(msg);
+            geometry_msgs::msg::TransformStamped transformStamped;
+            transformStamped.header = observation.header;
+
+            transformStamped.child_frame_id = fmt::format(
+                "{}{}/primary", posePrefix, transformStamped.header.frame_id
+            );
+            transformStamped.transform = primary;
+            broadcaster.sendTransform(transformStamped);
+
+            transformStamped.child_frame_id = fmt::format(
+                "{}{}/secondary", posePrefix, transformStamped.header.frame_id
+            );
+            transformStamped.transform = secondary;
+            broadcaster.sendTransform(transformStamped);
         }
     }
 
@@ -195,6 +209,11 @@ public:
             [this](const apriltag_msgs::msg::AprilTagDetectionArray& detections) {
                 onReceiveDetections(detections);
             }
+        );
+        // note that this is in the global namespace! we don't need separate observation topics
+        // for each camera, and it's easier to have them all publish to the same topic anyways.
+        observationPublisher = create_publisher<kc_vision_msgs::msg::Observation>(
+            "/observations", rclcpp::SensorDataQoS()
         );
 
         cameraFrameId = declare_parameter<std::string>("camera_frame_id", "");

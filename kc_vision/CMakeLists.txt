@@ -21,6 +21,7 @@ find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
 find_package(depthai REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(kc_vision_msgs REQUIRED)
 
 # if you're on windows, you'll have to change this
 add_library(ONNX SHARED IMPORTED)
@@ -47,6 +48,7 @@ target_include_directories(solve_pnp PRIVATE
         src/solve_pnp
         ${sensor_msgs_INCLUDE_DIRS}
         ${apriltag_msgs_INCLUDE_DIRS}
+        ${kc_vision_msgs_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
 )
 target_link_libraries(solve_pnp PRIVATE
@@ -57,20 +59,25 @@ target_link_libraries(solve_pnp PRIVATE
         fmt::fmt
         ${sensor_msgs_LIBRARIES}
         ${apriltag_msgs_LIBRARIES}
+        ${kc_vision_msgs_LIBRARIES}
         ${OpenCV_LIBRARIES}
 )
 
 add_executable(tag_consensus
         src/tag_consensus/tag_consensus.cpp
-        src/tag_consensus/ransac.cpp
         src/tag_consensus/apecs.cpp
 )
-target_include_directories(tag_consensus PRIVATE src/tag_consensus)
+target_include_directories(tag_consensus PRIVATE
+        src/tag_consensus
+        ${kc_vision_msgs_INCLUDE_DIRS}
+)
 target_link_libraries(tag_consensus PRIVATE
         common
         rclcpp::rclcpp
         tf2_ros::tf2_ros
         Eigen3::Eigen
+        tf2_geometry_msgs::tf2_geometry_msgs
+        ${kc_vision_msgs_LIBRARIES}
 )
 
 add_executable(ros_nt_bridge src/ros_nt_bridge/ros_nt_bridge.cpp)
