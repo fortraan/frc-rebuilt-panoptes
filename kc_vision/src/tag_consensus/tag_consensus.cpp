@@ -45,6 +45,7 @@ class TagConsensus : public rclcpp::Node {
 
     static bool shouldReject(const geometry_msgs::msg::Pose& pose) {
         if (pose.position.z > 1) return true;
+        if (pose.position.z < 0) return true;
         return false;
     }
 
@@ -53,15 +54,21 @@ class TagConsensus : public rclcpp::Node {
 
         std::vector<Observation> apecsObservations;
 
+        RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 3000, "Performing APECS with %lu observations", observations.size());
+
+        int rejectedForAge = 0;
         auto iter = observations.begin();
         const auto end = observations.end();
         while  (iter != end) {
             const auto observation = iter->second;
-            if (now - observation->header.stamp > maxEstimateAge) {
+            /*if (now - observation->header.stamp > maxEstimateAge) {
                 // this observation is too old and should be discarded.
+                rejectedForAge++;
                 iter = observations.erase(iter);
                 continue;
-            }
+            } else {*/
+                iter++;
+            // }
 
             // copy into stamped poses because tf2 *INSISTS* on having stamps
             geometry_msgs::msg::PoseStamped primaryTagRelative, secondaryTagRelative;
@@ -107,6 +114,8 @@ class TagConsensus : public rclcpp::Node {
                 );
             }
         }
+
+        RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 2000, "Rejected %d old observations", rejectedForAge);
 
         const auto consensus = apecs(apecsObservations);
         if (consensus) {

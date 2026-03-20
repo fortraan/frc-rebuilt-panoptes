@@ -48,6 +48,13 @@ namespace {
             std::cos(theta / 2),
         };
     }
+
+    void convert(const geometry_msgs::msg::Transform& transform, geometry_msgs::msg::Pose& pose) {
+        pose.position.x = transform.translation.x;
+        pose.position.y = transform.translation.y;
+        pose.position.z = transform.translation.z;
+        pose.orientation = transform.rotation;
+    }
 }
 
 class SolvePnP : public rclcpp::Node {
@@ -173,21 +180,22 @@ class SolvePnP : public rclcpp::Node {
             kc_vision_msgs::msg::Observation observation;
             observation.header.frame_id = fmt::format("apriltag_{}", detection.id);
             observation.header.stamp = detectionTime;
-            tf2::convert(primary, observation.primary);
-            tf2::convert(secondary, observation.secondary);
+            observation.id = fmt::format("{}{}", posePrefix, observation.header.frame_id);
+            convert(primary, observation.primary);
+            convert(secondary, observation.secondary);
             observationPublisher->publish(observation);
 
             geometry_msgs::msg::TransformStamped transformStamped;
             transformStamped.header = observation.header;
 
             transformStamped.child_frame_id = fmt::format(
-                "{}{}/primary", posePrefix, transformStamped.header.frame_id
+                "{}/primary", observation.id
             );
             transformStamped.transform = primary;
             broadcaster.sendTransform(transformStamped);
 
             transformStamped.child_frame_id = fmt::format(
-                "{}{}/secondary", posePrefix, transformStamped.header.frame_id
+                "{}/secondary", observation.id
             );
             transformStamped.transform = secondary;
             broadcaster.sendTransform(transformStamped);
