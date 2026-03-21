@@ -18,6 +18,7 @@
 #include <apriltag_msgs/msg/april_tag_detection_array.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
+#include <kc_vision_msgs/msg/observation.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/calib3d.hpp>
@@ -47,6 +48,13 @@ namespace {
             std::cos(theta / 2),
         };
     }
+
+    void convert(const geometry_msgs::msg::Transform& transform, geometry_msgs::msg::Pose& pose) {
+        pose.position.x = transform.translation.x;
+        pose.position.y = transform.translation.y;
+        pose.position.z = transform.translation.z;
+        pose.orientation = transform.rotation;
+    }
 }
 
 class SolvePnP : public rclcpp::Node {
@@ -57,6 +65,8 @@ class SolvePnP : public rclcpp::Node {
     std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::CameraInfo>> cameraInfoSubscription;
     std::shared_ptr<rclcpp::Subscription<apriltag_msgs::msg::AprilTagDetectionArray>> detectionsSubscription;
 
+    std::shared_ptr<rclcpp::Publisher<kc_vision_msgs::msg::Observation>> observationPublisher;
+
     std::string cameraFrameId;
     std::string posePrefix;
 
@@ -66,6 +76,16 @@ class SolvePnP : public rclcpp::Node {
     std::mutex intrinsicsMutex;
     cv::Matx33d cameraMatrix;
     cv::Mat distortionCoefficients;
+
+    geometry_msgs::msg::Transform cvToRosTform(const cv::Matx31d& translation, const cv::Matx31d& rotation) const {
+        const tf2::Transform cameraToTag {
+            rodriguesToQuaternion(rotation),
+            { translation.val[0], translation.val[1], translation.val[2] }
+        };
+        // todo this doesn't seem to be working quite right
+        const tf2::Transform tagToRobot = (robotToCamera * cameraToTag).inverse();
+        return tf2::toMsg(tagToRobot);
+    }
 
     void onReceiveCameraInfo(const sensor_msgs::msg::CameraInfo& cameraInfo) {
         std::lock_guard lock(intrinsicsMutex);
@@ -129,9 +149,11 @@ class SolvePnP : public rclcpp::Node {
 
             // compute possible poses
             std::vector<cv::Matx31d> translations, rotations;
+            std::vector<double> reprojectionErrors;
             const int numPoses = cv::solvePnPGeneric(
                 TAG_3D_POINTS, imgPoints, cameraMatrix, distortionCoefficients,
-                rotations, translations, false, cv::SOLVEPNP_IPPE_SQUARE
+                rotations, translations, false, cv::SOLVEPNP_IPPE_SQUARE,
+                cv::noArray(), cv::noArray(), reprojectionErrors
             );
 
             KC_DEBUG_ASSERT_ROS(
@@ -144,33 +166,39 @@ class SolvePnP : public rclcpp::Node {
                 static_cast<int>(rotations.size()) == numPoses,
                 "Incorrect number of rotations!"
             );
+            KC_DEBUG_ASSERT_ROS(
+                get_logger(),
+                static_cast<int>(reprojectionErrors.size()) == numPoses,
+                "Incorrect number of reprojection errors!"
+            );
+            KC_DEBUG_ASSERT_ROS(get_logger(), numPoses == 2, "Incorrect number of returns from IPPE-Square!");
 
-            for (int i = 0; i < numPoses; i++) {
-                tf2::Transform cameraToTag {
-                    rodriguesToQuaternion(rotations[i]),
-                    { translations[i].val[0], translations[i].val[1], translations[i].val[2] }
-                };
-                // todo this isn't working
-                tf2::Transform tagToRobot = (robotToCamera * cameraToTag).inverse();
+            const bool firstIsBetter = reprojectionErrors[0] < reprojectionErrors[1];
+            const auto primary = cvToRosTform(translations[firstIsBetter ? 0 : 1], rotations[firstIsBetter ? 0 : 1]);
+            const auto secondary = cvToRosTform(translations[firstIsBetter ? 1 : 0], rotations[firstIsBetter ? 1 : 0]);
 
-                // publish transform
-                geometry_msgs::msg::TransformStamped transformMsg;
+            kc_vision_msgs::msg::Observation observation;
+            observation.header.frame_id = fmt::format("apriltag_{}", detection.id);
+            observation.header.stamp = detectionTime;
+            observation.id = fmt::format("{}{}", posePrefix, observation.header.frame_id);
+            convert(primary, observation.primary);
+            convert(secondary, observation.secondary);
+            observationPublisher->publish(observation);
 
-                // static frame of the tag on the field
-                transformMsg.header.frame_id = fmt::format("apriltag_{}", detection.id);
-                // dynamic frame of the estimate of the camera's pose
-                transformMsg.child_frame_id = fmt::format(
-                    "{}robot_pose_estimate_{}:{}", posePrefix, detection.id, i
-                );
-                // tf2 will automatically handle interpolating between times when calculating transforms, so the
-                // timestamp of the transform needs to reflect when the measurement was taken.
-                transformMsg.header.stamp = detectionTime;
+            geometry_msgs::msg::TransformStamped transformStamped;
+            transformStamped.header = observation.header;
 
-                transformMsg.transform = tf2::toMsg(tagToRobot);
+            transformStamped.child_frame_id = fmt::format(
+                "{}/primary", observation.id
+            );
+            transformStamped.transform = primary;
+            broadcaster.sendTransform(transformStamped);
 
-                // send it!
-                broadcaster.sendTransform(transformMsg);
-            }
+            transformStamped.child_frame_id = fmt::format(
+                "{}/secondary", observation.id
+            );
+            transformStamped.transform = secondary;
+            broadcaster.sendTransform(transformStamped);
         }
     }
 
@@ -189,6 +217,11 @@ public:
             [this](const apriltag_msgs::msg::AprilTagDetectionArray& detections) {
                 onReceiveDetections(detections);
             }
+        );
+        // note that this is in the global namespace! we don't need separate observation topics
+        // for each camera, and it's easier to have them all publish to the same topic anyways.
+        observationPublisher = create_publisher<kc_vision_msgs::msg::Observation>(
+            "/observations", rclcpp::SensorDataQoS()
         );
 
         cameraFrameId = declare_parameter<std::string>("camera_frame_id", "");

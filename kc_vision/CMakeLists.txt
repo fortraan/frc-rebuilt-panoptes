@@ -22,6 +22,29 @@ find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
 find_package(depthai REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(kc_vision_msgs REQUIRED)
+
+# the following packages are platform-specific. The Jetson has these set up already,
+# but if you're building locally you'll need an Nvidia GPU, the CUDA toolkit, and
+# TensorRT installed.
+find_package(CUDA REQUIRED)
+find_package(Thrust REQUIRED)
+
+find_library(NVINFER NAMES nvinfer REQUIRED)
+find_library(NVONNXPARSER NAMES nvonnxparser REQUIRED)
+find_library(NVINFERPLUGIN NAMES nvinfer_plugin REQUIRED)
+
+add_library(TensorRT INTERFACE)
+target_link_libraries(TensorRT INTERFACE
+        ${CUDA_LIBRARIES}
+        ${NVINFER}
+        ${NVONNXPARSER}
+        ${NVINFERPLUGIN}
+)
+target_include_directories(TensorRT INTERFACE
+        ${CUDA_INCLUDE_DIRS}
+)
 
 # the following packages are platform-specific. The Jetson has these set up already,
 # but if you're building locally you'll need an Nvidia GPU, the CUDA toolkit, and
@@ -69,6 +92,7 @@ target_include_directories(solve_pnp PRIVATE
         src/solve_pnp
         ${sensor_msgs_INCLUDE_DIRS}
         ${apriltag_msgs_INCLUDE_DIRS}
+        ${kc_vision_msgs_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
 )
 target_link_libraries(solve_pnp PRIVATE
@@ -79,19 +103,25 @@ target_link_libraries(solve_pnp PRIVATE
         fmt::fmt
         ${sensor_msgs_LIBRARIES}
         ${apriltag_msgs_LIBRARIES}
+        ${kc_vision_msgs_LIBRARIES}
         ${OpenCV_LIBRARIES}
 )
 
 add_executable(tag_consensus
         src/tag_consensus/tag_consensus.cpp
-        src/tag_consensus/ransac.cpp
         src/tag_consensus/apecs.cpp
 )
-target_include_directories(tag_consensus PRIVATE src/tag_consensus)
+target_include_directories(tag_consensus PRIVATE
+        src/tag_consensus
+        ${kc_vision_msgs_INCLUDE_DIRS}
+)
 target_link_libraries(tag_consensus PRIVATE
         common
         rclcpp::rclcpp
         tf2_ros::tf2_ros
+        Eigen3::Eigen
+        tf2_geometry_msgs::tf2_geometry_msgs
+        ${kc_vision_msgs_LIBRARIES}
 )
 
 add_executable(ros_nt_bridge src/ros_nt_bridge/ros_nt_bridge.cpp)
@@ -108,6 +138,8 @@ add_executable(intake_cam
         src/intake_cam/intake_cam_node.cpp
         src/intake_cam/OakPipeline.cpp
         src/intake_cam/InferenceEngine.cpp
+        src/intake_cam/Displays.cpp
+        src/intake_cam/Displays.h
 )
 target_include_directories(intake_cam PRIVATE
         src/intake_cam

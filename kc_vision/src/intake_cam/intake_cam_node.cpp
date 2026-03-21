@@ -54,10 +54,11 @@ class IntakeCam : public rclcpp::Node {
     }
 
     void onDetectionsReceived(const std::shared_ptr<dai::SpatialImgDetections>& detections) {
-
+        RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 1000, "Received %lu detections", detections->detections.size());
     }
 
     void onTracksReceived(const std::shared_ptr<dai::Tracklets>& tracks) {
+        RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 1000, "Received %lu tracks", tracks->tracklets.size());
         if (tracks->tracklets.empty()) return;
 
         visualization_msgs::msg::Marker marker;
@@ -102,6 +103,8 @@ class IntakeCam : public rclcpp::Node {
 
 public:
     IntakeCam() : Node("intake_camera"), nvLogger(get_logger().get_child("TensorRT")) {
+        RCLCPP_INFO(get_logger(), "Initializing...");
+
         markerPublisher = create_publisher<visualization_msgs::msg::Marker>(
             "intake_camera_markers", rclcpp::SensorDataQoS()
         );
