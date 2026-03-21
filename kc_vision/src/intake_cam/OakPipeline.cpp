@@ -6,10 +6,8 @@
 #include <depthai/pipeline/node/SpatialDetectionNetwork.hpp>
 #include <depthai/pipeline/node/SpatialLocationCalculator.hpp>
 #include <depthai/pipeline/node/ObjectTracker.hpp>
-#include <depthai/pipeline/node/host/Display.hpp>
 
-#include "DepthDisplay.h"
-#include "DetectionsDisplay.h"
+#include "Displays.h"
 #include "InferenceEngine.h"
 
 namespace {
@@ -30,9 +28,7 @@ struct OakPipelineImpl : OakPipeline {
     std::shared_ptr<dai::node::SpatialLocationCalculator> locationCalculator;
     std::shared_ptr<dai::node::ObjectTracker> objectTracker;
 
-    std::shared_ptr<dai::node::Display> display;
-    std::shared_ptr<DepthDisplay> depthDisplay;
-    std::shared_ptr<DetectionsDisplay> detectionsDisplay;
+    std::shared_ptr<Displays> displays;
 
     //std::shared_ptr<InferenceEngine> inferenceEngine;
 
@@ -56,9 +52,7 @@ OakPipelineImpl::OakPipelineImpl(const std::filesystem::path& enginePath, nvinfe
     detectionNetwork = pipeline.create<dai::node::SpatialDetectionNetwork>()->build(centerCamera, depth, model);
     //locationCalculator = pipeline.create<dai::node::SpatialLocationCalculator>();
     objectTracker = pipeline.create<dai::node::ObjectTracker>();
-    display = pipeline.create<dai::node::Display>(WINDOW_NAME);
-    depthDisplay = pipeline.create<DepthDisplay>(depth->initialConfig->getMaxDisparity(), DEPTH_WINDOW_NAME);
-    detectionsDisplay = pipeline.create<DetectionsDisplay>(DETECTIONS_WINDOW_NAME);
+    displays = pipeline.create<Displays>(depth->initialConfig->getMaxDisparity());
 
     //inferenceEngine = pipeline.create<InferenceEngine>(enginePath, logger);
 
@@ -72,15 +66,12 @@ OakPipelineImpl::OakPipelineImpl(const std::filesystem::path& enginePath, nvinfe
     rightStream->link(depth->right);
     //inferenceEngine->passthrough.link(depth->inputAlignTo);
 
-    depth->depth.link(depthDisplay->in);
-
     detectionNetwork->passthrough.link(objectTracker->inputTrackerFrame);
     detectionNetwork->passthrough.link(objectTracker->inputDetectionFrame);
-    detectionNetwork->passthrough.link(detectionsDisplay->inImage);
+    detectionNetwork->passthrough.link(displays->inColor);
+    detectionNetwork->passthroughDepth.link(displays->inDepth);
     detectionNetwork->out.link(objectTracker->inputDetections);
-    detectionNetwork->out.link(detectionsDisplay->inDetections);
-
-    objectTracker->passthroughTrackerFrame.link(display->input);
+    detectionNetwork->out.link(displays->inDetections);
 
     detectionNetwork->setConfidenceThreshold(0.6f);
     detectionNetwork->input.setBlocking(false);
