@@ -21,7 +21,7 @@ find_package(visualization_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
-find_package(depthai REQUIRED)
+find_package(depthai 3 REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(kc_vision_msgs REQUIRED)
 
@@ -45,32 +45,6 @@ target_link_libraries(TensorRT INTERFACE
 target_include_directories(TensorRT INTERFACE
         ${CUDA_INCLUDE_DIRS}
 )
-
-# the following packages are platform-specific. The Jetson has these set up already,
-# but if you're building locally you'll need an Nvidia GPU, the CUDA toolkit, and
-# TensorRT installed.
-find_package(CUDA REQUIRED)
-find_package(Thrust REQUIRED)
-
-find_library(NVINFER NAMES nvinfer REQUIRED)
-find_library(NVONNXPARSER NAMES nvonnxparser REQUIRED)
-find_library(NVINFERPLUGIN NAMES nvinfer_plugin REQUIRED)
-
-add_library(TensorRT INTERFACE)
-target_link_libraries(TensorRT INTERFACE
-        ${CUDA_LIBRARIES}
-        ${NVINFER}
-        ${NVONNXPARSER}
-        ${NVINFERPLUGIN}
-)
-target_include_directories(TensorRT INTERFACE
-        ${CUDA_INCLUDE_DIRS}
-)
-
-# if you're on windows, you'll have to change this
-#add_library(ONNX SHARED IMPORTED)
-#set_property(TARGET ONNX PROPERTY IMPORTED_LOCATION "/usr/lib/x86_64-linux-gnu/libonnx.so")
-#set_property(TARGET ONNX PROPERTY INTERFACE_INCLUDE_DIRECTORIES "/usr/include/")
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

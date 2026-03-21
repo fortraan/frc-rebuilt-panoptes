@@ -127,13 +127,13 @@ def generate_launch_description():
         # tag_consensus takes the detections provided by the apriltag nodes and computes the camera pose
         # for each tag. it considers all solutions of solvePnP. obvious outliers are rejected, and the
         # remaining solutions are processed with RANSAC to produce a single pose estimate.
-        Node(
-            package="kc_vision",
-            executable="tag_consensus",
-            name="tag_consensus",
-            parameters=[base_params],
-            arguments=["--ros-args", "--log-level", "tag_consensus:=DEBUG"]
-        ),
+        # Node(
+        #     package="kc_vision",
+        #     executable="tag_consensus",
+        #     name="tag_consensus",
+        #     parameters=[base_params],
+        #     arguments=["--ros-args", "--log-level", "tag_consensus:=DEBUG"]
+        # ),
         # ros_nt_bridge connects ROS to NetworkTables. it sends the pose estimate from tag_consensus to
         # the Rio via NetworkTables. additionally, it listens for the fused pose estimate computed by the
         # Rio and publishes it as a TF2 frame.

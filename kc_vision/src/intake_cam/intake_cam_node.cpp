@@ -19,33 +19,9 @@ namespace {
     constexpr auto WINDOW_NAME = "Raw Detections";
 }
 
-class NvRosLogger : public nvinfer1::ILogger {
-    rclcpp::Logger rosLogger;
-public:
-    explicit NvRosLogger(const rclcpp::Logger& logger) : rosLogger(logger) { }
-    void log(const Severity severity, const nvinfer1::AsciiChar* msg) noexcept override {
-        switch (severity) {
-            case Severity::kINTERNAL_ERROR:
-            case Severity::kERROR:
-                RCLCPP_ERROR(rosLogger, "%s", msg);
-                break;
-            case Severity::kWARNING:
-                RCLCPP_WARN(rosLogger, "%s", msg);
-                break;
-            case Severity::kINFO:
-                RCLCPP_INFO(rosLogger, "%s", msg);
-                break;
-            case Severity::kVERBOSE:
-                RCLCPP_DEBUG(rosLogger, "%s", msg);
-                break;
-        }
-    }
-};
-
 class IntakeCam : public rclcpp::Node {
     std::shared_ptr<rclcpp::Publisher<visualization_msgs::msg::Marker>> markerPublisher;
 
-    NvRosLogger nvLogger;
     std::unique_ptr<OakPipeline> oakPipeline;
 
     rclcpp::Time daiTimestampToRosTime(const std::chrono::time_point<std::chrono::steady_clock> daiTimestamp) {
@@ -102,7 +78,7 @@ class IntakeCam : public rclcpp::Node {
     }
 
 public:
-    IntakeCam() : Node("intake_camera"), nvLogger(get_logger().get_child("TensorRT")) {
+    IntakeCam() : Node("intake_camera") {
         RCLCPP_INFO(get_logger(), "Initializing...");
 
         markerPublisher = create_publisher<visualization_msgs::msg::Marker>(
@@ -112,7 +88,7 @@ public:
         oakPipeline = OakPipeline::create(
             std::filesystem::path(ament_index_cpp::get_package_share_directory("kc_vision"))
             / "resources" / ENGINE_FILE_NAME,
-            nvLogger
+            get_logger(), get_clock()
         );
         oakPipeline->addDetectionCallback([this](const auto& detections) {
             onDetectionsReceived(detections);

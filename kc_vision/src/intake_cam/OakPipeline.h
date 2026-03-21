@@ -8,15 +8,15 @@
 #include <depthai/pipeline/datatype/SpatialImgDetections.hpp>
 #include <depthai/pipeline/datatype/Tracklets.hpp>
 
-namespace nvinfer1 {
-    class ILogger;
-}
+#include <rclcpp/clock.hpp>
+#include <rclcpp/logger.hpp>
 
 struct OakPipeline {
     using DetectionCallback = std::function<void(const std::shared_ptr<dai::SpatialImgDetections>&)>;
     using TrackingCallback = std::function<void(const std::shared_ptr<dai::Tracklets>&)>;
 
-    static std::unique_ptr<OakPipeline> create(const std::filesystem::path& enginePath, nvinfer1::ILogger& logger);
+    static std::unique_ptr<OakPipeline> create(const std::filesystem::path& enginePath, rclcpp::Logger logger,
+                                               const std::shared_ptr<rclcpp::Clock>& clock);
     virtual ~OakPipeline() noexcept = default;
 
     virtual void start() = 0;

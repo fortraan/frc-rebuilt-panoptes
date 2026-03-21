@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <fstream>
+#include <span>
 #include <stdexcept>
 #include <vector>
 
@@ -27,6 +28,8 @@ namespace {
     constexpr auto OUTPUT_TENSOR_NAME = "output0";
     constexpr nvinfer1::Dims64 OUTPUT_SHAPE { 3, { 1, MAX_NUM_DETECTIONS, 6 } };
     constexpr auto OUTPUT_TYPE = nvinfer1::DataType::kFLOAT;
+
+    constexpr std::array LABELS { "fuel", "robot" };
 
     bool operator==(const nvinfer1::Dims64& a, const nvinfer1::Dims64& b) {
         if (a.nbDims != b.nbDims) return false;
@@ -106,26 +109,29 @@ namespace {
     }
 }
 
-InferenceEngine::InferenceEngine(const std::filesystem::path& enginePath, nvinfer1::ILogger& logger) :
-    cudaStream(),
-    in(*this, InputDescription {
-        .name = "image",
-        .group = DEFAULT_GROUP,
-        .blocking = false,
-        .queueSize = 1,
-        .types = { { { dai::DatatypeEnum::ImgFrame, true } } },
-        .waitForMessage = true
-    }),
-    out(*this, OutputDescription {
-        .name = "out",
-        .group = DEFAULT_GROUP,
-        .types = { { { dai::DatatypeEnum::ImgDetections, false } } }
-    }),
-    passthrough(*this, OutputDescription {
-        "passthrough", DEFAULT_GROUP, { { { dai::DatatypeEnum::ImgFrame, true } } }
-    })
+void NvRosLogger::log(const Severity severity, const nvinfer1::AsciiChar *msg) noexcept {
+    switch (severity) {
+        case Severity::kINTERNAL_ERROR:
+        case Severity::kERROR:
+            RCLCPP_ERROR(rosLogger, "%s", msg);
+            break;
+        case Severity::kWARNING:
+            RCLCPP_WARN(rosLogger, "%s", msg);
+            break;
+        case Severity::kINFO:
+            RCLCPP_INFO(rosLogger, "%s", msg);
+            break;
+        case Severity::kVERBOSE:
+            RCLCPP_DEBUG(rosLogger, "%s", msg);
+            break;
+    }
+}
+
+InferenceEngine::InferenceEngine(const std::filesystem::path& enginePath, rclcpp::Logger logger,
+                                 const std::shared_ptr<rclcpp::Clock>& clock) :
+    logger(logger), clock(clock), nvLogger(logger.get_child("TensorRT")), cudaStream()
 {
-    nvRuntime = std::unique_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(logger));
+    nvRuntime = std::unique_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(nvLogger));
 
     if (!std::filesystem::exists(enginePath)) {
         throw std::runtime_error(fmt::format("Engine file {} does not exist!", enginePath.string()));
@@ -134,7 +140,8 @@ InferenceEngine::InferenceEngine(const std::filesystem::path& enginePath, nvinfe
     const std::size_t serializedEngineSize = std::filesystem::file_size(enginePath);
     std::vector<uint8_t> serializedEngine(serializedEngineSize);
     std::ifstream engineStream(enginePath, std::ios::in | std::ios::binary);
-    KC_DEBUG_ASSERT(
+    KC_DEBUG_ASSERT_ROS(
+        logger,
         // max is at least 4GB, so this will probably never happen. however, it's the policy of this project that
         // assumptions are explicitly stated using assertions.
         serializedEngineSize < std::numeric_limits<std::streamsize>::max(),
@@ -150,24 +157,24 @@ InferenceEngine::InferenceEngine(const std::filesystem::path& enginePath, nvinfe
     );
     nvContext = std::unique_ptr<nvinfer1::IExecutionContext>(nvEngine->createExecutionContext());
 
-    const nvinfer1::Dims64 inputShape = nvEngine->getTensorShape(INPUT_TENSOR_NAME);
+    inputShape = nvEngine->getTensorShape(INPUT_TENSOR_NAME);
     const nvinfer1::DataType inputType = nvEngine->getTensorDataType(INPUT_TENSOR_NAME);
-    const std::size_t inputBufferSize = tensorSize(inputType, inputShape);
+    inputSize = tensorSize(inputType, inputShape);
 
     const nvinfer1::Dims64 outputShape = nvEngine->getTensorShape(OUTPUT_TENSOR_NAME);
     const nvinfer1::DataType outputType = nvEngine->getTensorDataType(OUTPUT_TENSOR_NAME);
     const std::size_t outputBufferSize = tensorSize(outputType, outputShape);
 
-    // RCLCPP_DEBUG(inferenceLogger, "%s", fmt::format(
-    //     "Input tensor \"{}\" is a [{}] {}. Output tensor \"{}\" is a [{}] {}",
-    //     INPUT_TENSOR_NAME, fmt::join(inputShape.d, ", "), cudaDataTypeToStr(inputType),
-    //     OUTPUT_TENSOR_NAME, fmt::join(outputShape.d, ", "), cudaDataTypeToStr(outputType)
-    // ).c_str());
+    RCLCPP_INFO(logger, "%s", fmt::format(
+        "Input tensor \"{}\" is a {}:[{}] {}. Output tensor \"{}\" is a {}:[{}] {}",
+        INPUT_TENSOR_NAME, inputShape.nbDims, fmt::join(inputShape.d, ", "), cudaDataTypeToStr(inputType),
+        OUTPUT_TENSOR_NAME, outputShape.nbDims, fmt::join(outputShape.d, ", "), cudaDataTypeToStr(outputType)
+    ).c_str());
 
-    KC_DEBUG_ASSERT(inputShape == INPUT_SHAPE, "Incorrect input shape!");
-    KC_DEBUG_ASSERT(inputType == INPUT_TYPE, "Incorrect input type!");
-    KC_DEBUG_ASSERT(outputShape == OUTPUT_SHAPE, "Incorrect output shape!");
-    KC_DEBUG_ASSERT(outputType == OUTPUT_TYPE, "Incorrect output type!");
+    KC_DEBUG_ASSERT_ROS(logger, inputShape == INPUT_SHAPE, "Incorrect input shape!");
+    KC_DEBUG_ASSERT_ROS(logger, inputType == INPUT_TYPE, "Incorrect input type!");
+    KC_DEBUG_ASSERT_ROS(logger, outputShape == OUTPUT_SHAPE, "Incorrect output shape!");
+    KC_DEBUG_ASSERT_ROS(logger, outputType == OUTPUT_TYPE, "Incorrect output type!");
 
     cudaError_t cudaResult;
     void* cudaPtr = nullptr;
@@ -175,10 +182,10 @@ InferenceEngine::InferenceEngine(const std::filesystem::path& enginePath, nvinfe
     // the Jetson has unified memory, so we can use cudaMallocManaged to share memory between the CPU and GPU.
     // this provides a significant performance improvement. memory allocated by cudaMallocManaged is freed the
     // same way as with cudaMalloc, so it can be given to a thrust::device_ptr for automatic lifetime management.
-    cudaResult = cudaMallocManaged(&cudaPtr, inputBufferSize);
+    cudaResult = cudaMallocManaged(&cudaPtr, inputSize);
     if (cudaResult != cudaSuccess) {
         constexpr auto msg = "Failed to allocate GPU buffer for input tensor!";
-        // RCLCPP_FATAL(inferenceLogger, msg);
+        RCLCPP_FATAL(logger, msg);
         throw std::runtime_error(msg);
     }
     inputTensor = thrust::device_ptr<float>(static_cast<float*>(cudaPtr));
@@ -186,7 +193,7 @@ InferenceEngine::InferenceEngine(const std::filesystem::path& enginePath, nvinfe
     cudaResult = cudaMallocManaged(&cudaPtr, outputBufferSize);
     if (cudaResult != cudaSuccess) {
         constexpr auto msg = "Failed to allocate GPU buffer for output tensor!";
-        // RCLCPP_FATAL(inferenceLogger, msg);
+        RCLCPP_FATAL(logger, msg);
         throw std::runtime_error(msg);
     }
     outputTensor = thrust::device_ptr<float>(static_cast<float*>(cudaPtr));
@@ -197,7 +204,9 @@ InferenceEngine::InferenceEngine(const std::filesystem::path& enginePath, nvinfe
     // todo should this be non-blocking? (cudaStreamNonBlocking)
     cudaResult = cudaStreamCreate(&cudaStream);
     if (cudaResult != cudaSuccess) {
-        throw std::runtime_error("Failed to create CUDA stream!");
+        constexpr auto msg = "Failed to create CUDA stream!";
+        RCLCPP_FATAL(logger, msg);
+        throw std::runtime_error(msg);
     }
 }
 
@@ -205,17 +214,22 @@ InferenceEngine::~InferenceEngine() noexcept {
     cudaStreamDestroy(cudaStream);
 }
 
-void InferenceEngine::run() {
-    std::vector<cv::Mat> channels(3);
+void InferenceEngine::build(const std::shared_ptr<dai::node::Camera> &camera) {
+    cameraOutput = camera->requestOutput(
+        { inputShape.d[3], inputShape.d[2] }, dai::ImgFrame::Type::RGB888p,
+        dai::ImgResizeMode::CROP, std::nullopt, true
+    );
+    if (cameraOutput == nullptr) {
+        constexpr auto msg = "Could not create camera output!";
+        RCLCPP_FATAL(logger, msg);
+        throw std::runtime_error(msg);
+    }
+    in.setBlocking(false);
+    cameraOutput->link(in);
+}
 
-    // create views of input tensor. these mats don't allocate any memory; they're just views of the input tensor.
-    // since we're using unified memory, OpenCV can treat the CUDA memory like it's any other memory.
-    constexpr std::size_t planeSize = INPUT_IMAGE_WIDTH * INPUT_IMAGE_HEIGHT;
-    static_assert(sizeof(*inputTensor.get()) == sizeof(float));
-    // go go gadget pointer arithmetic
-    cv::Mat red(INPUT_IMAGE_HEIGHT, INPUT_IMAGE_WIDTH, CV_32FC1, inputTensor.get());
-    cv::Mat green(INPUT_IMAGE_HEIGHT, INPUT_IMAGE_WIDTH, CV_32FC1, inputTensor.get() + planeSize);
-    cv::Mat blue(INPUT_IMAGE_HEIGHT, INPUT_IMAGE_WIDTH, CV_32FC1, inputTensor.get() + 2 * planeSize);
+void InferenceEngine::run() {
+    cv::Mat input(inputShape.d[1] * inputShape.d[2], inputShape.d[3], CV_32FC1, inputTensor.get());
 
     while (mainLoop()) {
         std::shared_ptr<dai::ImgFrame> frame;
@@ -225,26 +239,21 @@ void InferenceEngine::run() {
             frame = in.get<dai::ImgFrame>();
         }
 
-        if (frame == nullptr) continue;
+        if (frame == nullptr) {
+            //KC_DEBUG_ASSERT_ROS(logger, in.isConnected(), "Input is not connected!");
+            RCLCPP_WARN_THROTTLE(logger, *clock, 500, "Failed to get frame from input!");
+            continue;
+        }
 
         const auto frameAge = std::chrono::steady_clock::now() - frame->getTimestamp();
 
         using Clock = std::chrono::high_resolution_clock;
         const auto start = Clock::now();
 
-        // todo give this a pool allocator?
-        const auto mat = frame->getCvFrame();
-
-        KC_DEBUG_ASSERT(mat.cols == INPUT_IMAGE_WIDTH, "Input width is incorrect!");
-        KC_DEBUG_ASSERT(mat.rows == INPUT_IMAGE_HEIGHT, "Input height is incorrect!");
-
-        // the network expects planar inputs, not interlaced. split the mat into channels. getCvFrame() will return
-        // a BGR image (per the docs), so the channels will be in that order.
-        cv::split(mat, channels); // todo make sure this reuses existing mats in the vector
-        // convert channels to float, normalizing in the process
-        channels[0].convertTo(blue, CV_32F, 1.0 / 255.0);
-        channels[1].convertTo(green, CV_32F, 1.0 / 255.0);
-        channels[2].convertTo(red, CV_32F, 1.0 / 255.0);
+        const auto cvFrame = frame->getFrame();
+        KC_DEBUG_ASSERT_ROS(logger, cvFrame.cols == inputShape.d[3], "Input width is incorrect!");
+        KC_DEBUG_ASSERT_ROS(logger, cvFrame.rows == inputShape.d[1] * inputShape.d[2], "Input height is incorrect!");
+        frame->getFrame().convertTo(input, CV_32FC1, 1.0 / 255.0);
 
         const auto preprocessingEnd = Clock::now();
 
@@ -272,8 +281,14 @@ void InferenceEngine::run() {
         for (int i = 0; i < MAX_NUM_DETECTIONS; i++) {
             const auto& [x0, y0, x1, y1, confidence, cls] = detectionPtr[i];
 
+            if (x0 == x1 || y0 == y1) continue;
             if (confidence < confidenceThreshold) continue;
 
+            const auto labelIndex = static_cast<uint32_t>(std::round(cls));
+            std::string labelName;
+            if (labelIndex < LABELS.size()) {
+                labelName = LABELS[labelIndex];
+            }
             detectionsMsg->detections.emplace_back(
                 dai::RotatedRect {
                     {
@@ -282,11 +297,14 @@ void InferenceEngine::run() {
                     },
                     0
                 },
-                confidence, static_cast<uint32_t>(std::round(cls))
+                labelName, confidence, labelIndex
             );
         }
+        detectionsMsg->transformation = frame->transformation;
 
         const auto postprocessingEnd = Clock::now();
+
+        RCLCPP_DEBUG_THROTTLE(logger, *clock, 2000, "Detections: %lu", detectionsMsg->detections.size());
 
         out.send(detectionsMsg);
 

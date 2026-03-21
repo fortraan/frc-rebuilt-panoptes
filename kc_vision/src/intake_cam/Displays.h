@@ -7,9 +7,9 @@ class Displays : public dai::node::CustomThreadedNode<Displays> {
     double maxDisparity;
 
 public:
-    Input inColor { *this, { } };
-    Input inDepth { *this, { } };
-    Input inDetections { *this, { } };
+    Input inColor { *this, { .blocking = false } };
+    Input inDepth { *this, { .blocking = false } };
+    Input inDetections { *this, { .blocking = false } };
 
     Displays(double maxDisparity);
     ~Displays() noexcept override = default;
