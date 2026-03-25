@@ -10,7 +10,7 @@
 #include "InferenceEngine.h"
 
 namespace {
-    constexpr std::pair<uint32_t, uint32_t> IMAGE_SIZE { 640, 640 };
+    constexpr std::pair<uint32_t, uint32_t> IMAGE_SIZE { 512, 512 };
 }
 
 struct OakPipelineImpl : OakPipeline {
@@ -23,7 +23,7 @@ struct OakPipelineImpl : OakPipeline {
     std::shared_ptr<dai::node::SpatialLocationCalculator> locationCalculator;
     std::shared_ptr<dai::node::ObjectTracker> objectTracker;
 
-    std::shared_ptr<Displays> displays;
+    //std::shared_ptr<Displays> displays;
 
     std::shared_ptr<InferenceEngine> inferenceEngine;
 
@@ -47,7 +47,7 @@ OakPipelineImpl::OakPipelineImpl(const std::filesystem::path& enginePath, rclcpp
     depth = pipeline.create<dai::node::StereoDepth>();
     locationCalculator = pipeline.create<dai::node::SpatialLocationCalculator>();
     objectTracker = pipeline.create<dai::node::ObjectTracker>();
-    displays = pipeline.create<Displays>(depth->initialConfig->getMaxDisparity());
+    //displays = pipeline.create<Displays>(depth->initialConfig->getMaxDisparity());
 
     inferenceEngine = pipeline.create<InferenceEngine>(enginePath, logger, clock);
     inferenceEngine->build(centerCamera);
@@ -58,17 +58,17 @@ OakPipelineImpl::OakPipelineImpl(const std::filesystem::path& enginePath, rclcpp
     leftStream->link(depth->left);
     rightStream->link(depth->right);
 
-    depth->depth.link(displays->inDepth);
+    //depth->depth.link(displays->inDepth);
     depth->depth.link(locationCalculator->inputDepth);
 
     inferenceEngine->passthrough.link(objectTracker->inputTrackerFrame);
     inferenceEngine->passthrough.link(objectTracker->inputDetectionFrame);
-    inferenceEngine->passthrough.link(displays->inColor);
+    //inferenceEngine->passthrough.link(displays->inColor);
     inferenceEngine->passthrough.link(depth->inputAlignTo);
     inferenceEngine->out.link(locationCalculator->inputDetections);
 
     locationCalculator->outputDetections.link(objectTracker->inputDetections);
-    locationCalculator->outputDetections.link(displays->inDetections);
+    //locationCalculator->outputDetections.link(displays->inDetections);
 
     // detectionNetwork->setConfidenceThreshold(0.6f);
     // detectionNetwork->input.setBlocking(false);

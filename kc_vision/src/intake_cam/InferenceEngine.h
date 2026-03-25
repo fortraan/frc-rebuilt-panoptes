@@ -38,7 +38,7 @@ class InferenceEngine : public dai::node::CustomThreadedNode<InferenceEngine> {
 
     cudaStream_t cudaStream;
 
-    Input in { *this, { } };
+    Input in { *this, { .blocking = false } };
     Output* cameraOutput;
 
 public:

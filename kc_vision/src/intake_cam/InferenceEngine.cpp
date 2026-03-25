@@ -18,8 +18,8 @@
 
 namespace {
     constexpr int MAX_NUM_DETECTIONS = 300;
-    constexpr int INPUT_IMAGE_WIDTH = 640;
-    constexpr int INPUT_IMAGE_HEIGHT = 640;
+    constexpr int INPUT_IMAGE_WIDTH = 512;
+    constexpr int INPUT_IMAGE_HEIGHT = 512;
 
     constexpr auto INPUT_TENSOR_NAME = "images";
     constexpr nvinfer1::Dims64 INPUT_SHAPE { 4, { 1, 3, INPUT_IMAGE_HEIGHT, INPUT_IMAGE_WIDTH } };
@@ -131,6 +131,14 @@ InferenceEngine::InferenceEngine(const std::filesystem::path& enginePath, rclcpp
                                  const std::shared_ptr<rclcpp::Clock>& clock) :
     logger(logger), clock(clock), nvLogger(logger.get_child("TensorRT")), cudaStream()
 {
+    setAlias("InferenceEngine");
+    in.setName("inferenceInput");
+    out.setName("inferenceOutput");
+    passthrough.setName("inferencePassthrough");
+
+    in.setBlocking(false);
+    in.setMaxSize(2);
+
     nvRuntime = std::unique_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(nvLogger));
 
     if (!std::filesystem::exists(enginePath)) {
@@ -278,6 +286,7 @@ void InferenceEngine::run() {
         const auto detectionPtr = reinterpret_cast<const Detection*>(outputTensor.get());
 
         const auto detectionsMsg = std::make_shared<dai::ImgDetections>();
+        KC_DEBUG_ASSERT_ROS(logger, detectionsMsg->detections.empty(), "Detections isn't empty!");
         for (int i = 0; i < MAX_NUM_DETECTIONS; i++) {
             const auto& [x0, y0, x1, y1, confidence, cls] = detectionPtr[i];
 
@@ -289,7 +298,7 @@ void InferenceEngine::run() {
             if (labelIndex < LABELS.size()) {
                 labelName = LABELS[labelIndex];
             }
-            detectionsMsg->detections.emplace_back(
+            dai::ImgDetection detection = {
                 dai::RotatedRect {
                     {
                         dai::Point2f { x0, y0, false },
@@ -298,7 +307,10 @@ void InferenceEngine::run() {
                     0
                 },
                 labelName, confidence, labelIndex
-            );
+            };
+            KC_DEBUG_ASSERT_ROS(logger, detection.getWidth() != 0, "Detection width is 0!");
+            KC_DEBUG_ASSERT_ROS(logger, detection.getHeight() != 0, "Detection height is 0!");
+            detectionsMsg->detections.emplace_back(std::move(detection));
         }
         detectionsMsg->transformation = frame->transformation;
 
@@ -311,7 +323,7 @@ void InferenceEngine::run() {
         // performanceMetrics is assigned to as an atomic operation. PerformanceMetrics is trivially copyable, so
         // assigning the entire struct is no different from assigning to the variables within, performance-wise.
         using namespace std::chrono;
-        performanceMetrics = PerformanceMetrics {
+        PerformanceMetrics metrics {
             // casting to microseconds loses some precision (default is nanoseconds), which requires an explicit
             // cast. if we kept it in nanoseconds, it would implicitly convert
             .frameAge = duration_cast<microseconds>(frameAge),
@@ -319,6 +331,13 @@ void InferenceEngine::run() {
             .inferenceTime = duration_cast<microseconds>(inferenceEnd - preprocessingEnd),
             .postprocessingTime = duration_cast<microseconds>(postprocessingEnd - inferenceEnd)
         };
+        performanceMetrics = metrics;
+
+        RCLCPP_INFO(
+            logger, "Detected: %lu Inference Performance: Pre-processing: %ld Processing: %ld Post-processing: %ld",
+            detectionsMsg->detections.size(), metrics.preprocessingTime.count(), metrics.inferenceTime.count(),
+            metrics.postprocessingTime.count()
+        );
 
         passthrough.send(frame);
     }

@@ -15,8 +15,7 @@
 
 namespace {
     // hardcoded for testing
-    constexpr auto ENGINE_FILE_NAME = "bnb-yolov26n-fp16+fp32.engine";
-    constexpr auto WINDOW_NAME = "Raw Detections";
+    constexpr auto ENGINE_FILE_NAME = "roboraiders-v26n-fp32.engine";
 }
 
 class IntakeCam : public rclcpp::Node {
