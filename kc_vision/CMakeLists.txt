@@ -18,6 +18,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(apriltag_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
@@ -130,6 +131,20 @@ target_link_libraries(intake_cam PRIVATE
         Thrust::Thrust
         ${visualization_msgs_LIBRARIES}
         ${OpenCV_LIBRARIES}
+)
+
+add_executable(oak_driver src/oak_driver/oak_driver.cpp)
+target_include_directories(oak_driver PRIVATE
+        src/oak_driver
+        ${sensor_msgs_INCLUDE_DIRS}
+        ${diagnostic_msgs_INCLUDE_DIRS}
+)
+target_link_libraries(oak_driver PRIVATE
+        common
+        rclcpp::rclcpp
+        depthai::core
+        ${sensor_msgs_LIBRARIES}
+        ${diagnostic_msgs_LIBRARIES}
 )
 
 add_executable(ObjectTracking src/object_tracking.cpp)
