@@ -18,7 +18,11 @@ find_package(ament_index_cpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(apriltag_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(vision_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(diagnostic_updater REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(cv_bridge REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
@@ -109,43 +113,61 @@ target_link_libraries(ros_nt_bridge PRIVATE
         wpimath
 )
 
-add_executable(intake_cam
-        src/intake_cam/intake_cam_node.cpp
-        src/intake_cam/OakPipeline.cpp
-        src/intake_cam/InferenceEngine.cpp
-        src/intake_cam/Displays.cpp
-        src/intake_cam/DepthDisplay.cpp
-)
-target_include_directories(intake_cam PRIVATE
+#add_executable(intake_cam
+#        src/intake_cam/intake_cam_node.cpp
+#        src/intake_cam/OakPipeline.cpp
+#        src/intake_cam/InferenceEngine.cpp
+#        src/intake_cam/Displays.cpp
+#        src/intake_cam/DepthDisplay.cpp
+#)
+#target_include_directories(intake_cam PRIVATE
+#        src/intake_cam
+#        ${visualization_msgs_INCLUDE_DIRS}
+#        ${OpenCV_INCLUDE_DIRS}
+#)
+#target_link_libraries(intake_cam PRIVATE
+#        common
+#        rclcpp::rclcpp
+#        ament_index_cpp::ament_index_cpp
+#        depthai::core
+#        wpiutil # included for fmt because fmt::fmt doesn't work now??
+#        TensorRT
+#        Thrust::Thrust
+#        ${visualization_msgs_LIBRARIES}
+#        ${OpenCV_LIBRARIES}
+#)
+
+add_executable(detection_location_calculator src/intake_cam/detection_location_calculator.cpp)
+target_include_directories(detection_location_calculator PRIVATE
         src/intake_cam
-        ${visualization_msgs_INCLUDE_DIRS}
-        ${OpenCV_INCLUDE_DIRS}
+        ${sensor_msgs_INCLUDE_DIRS}
+        ${vision_msgs_INCLUDE_DIRS}
 )
-target_link_libraries(intake_cam PRIVATE
+target_link_libraries(detection_location_calculator PRIVATE
         common
         rclcpp::rclcpp
-        ament_index_cpp::ament_index_cpp
-        depthai::core
-        wpiutil # included for fmt because fmt::fmt doesn't work now??
-        TensorRT
-        Thrust::Thrust
-        ${visualization_msgs_LIBRARIES}
-        ${OpenCV_LIBRARIES}
+        opencv_core
+        image_transport::image_transport
+        cv_bridge::cv_bridge
+        ${sensor_msgs_LIBRARIES}
+        ${vision_msgs_LIBRARIES}
 )
 
-add_executable(oak_driver src/oak_driver/oak_driver.cpp)
-target_include_directories(oak_driver PRIVATE
-        src/oak_driver
-        ${sensor_msgs_INCLUDE_DIRS}
-        ${diagnostic_msgs_INCLUDE_DIRS}
-)
-target_link_libraries(oak_driver PRIVATE
-        common
-        rclcpp::rclcpp
-        depthai::core
-        ${sensor_msgs_LIBRARIES}
-        ${diagnostic_msgs_LIBRARIES}
-)
+#add_executable(oak_driver src/oak_driver/oak_driver.cpp)
+#target_include_directories(oak_driver PRIVATE
+#        src/oak_driver
+#        ${sensor_msgs_INCLUDE_DIRS}
+#        ${diagnostic_msgs_INCLUDE_DIRS}
+#        ${diagnostic_updater_INCLUDE_DIRS}
+#)
+#target_link_libraries(oak_driver PRIVATE
+#        common
+#        rclcpp::rclcpp
+#        depthai::core
+#        ${sensor_msgs_LIBRARIES}
+#        ${diagnostic_msgs_LIBRARIES}
+#        ${diagnostic_updater_LIBRARIES}
+#)
 
 add_executable(ObjectTracking src/object_tracking.cpp)
 target_include_directories(ObjectTracking PRIVATE ${OpenCV_INCLUDE_DIRS})
@@ -155,7 +177,7 @@ target_link_libraries(ObjectTracking PRIVATE
         ${OpenCV_LIBRARIES}
 )
 
-install(TARGETS solve_pnp tag_consensus ros_nt_bridge intake_cam ObjectTracking
+install(TARGETS solve_pnp tag_consensus ros_nt_bridge ObjectTracking
         DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS src/field_urdf_generator/apriltag_urdf_generator.py

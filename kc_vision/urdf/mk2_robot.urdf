@@ -44,6 +44,6 @@
     <joint name="chassis_to_intake_camera" type="fixed">
         <parent link="chassis"/>
         <child link="intake_camera"/>
-        <origin xyz="0 0.1 0.5" rpy="-1.57079 0 -1.57079"/>
+        <origin xyz="0 0.1 0.5"/> <!-- DepthAI uses x forward, z up for the camera -->
     </joint>
 </robot>

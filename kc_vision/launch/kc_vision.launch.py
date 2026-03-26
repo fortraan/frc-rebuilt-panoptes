@@ -1,3 +1,5 @@
+from sys import executable
+
 from launch import LaunchDescription
 from launch_ros.actions import Node, ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
@@ -41,9 +43,9 @@ def camera_nodes(namespace, config, camera_id):
                     }]
                 ),
                 ComposableNode(
-                    package='image_proc',
-                    plugin='image_proc::RectifyNode',
-                    name='rectify',
+                    package="image_proc",
+                    plugin="image_proc::RectifyNode",
+                    name="rectify",
                     namespace=namespace,
                     remappings=[
                         ("image", "image_raw")
@@ -76,6 +78,7 @@ def camera_nodes(namespace, config, camera_id):
 def generate_launch_description():
     pkg_share = get_package_share_directory("kc_vision")
     base_params = get_config_path("base_params.yaml")
+    intake_camera_ns = "intake_camera"
 
     nodes = [
         Node(
@@ -142,11 +145,64 @@ def generate_launch_description():
         #     executabe="ros_nt_bridge",
         #     parameters=[base_params]
         # ),
+        # Node(
+        #     package="diagnostic_aggregator",
+        #     executable="aggregator_node",
+        #     name="diag_aggregator"
+        # ),
+        ComposableNodeContainer(
+            name="container",
+            package="rclcpp_components",
+            namespace=intake_camera_ns,
+            executable="component_container",
+            composable_node_descriptions=[
+                ComposableNode(
+                    package="depthai_ros_driver",
+                    plugin="depthai_ros_driver::Driver",
+                    name=intake_camera_ns, # the driver namespaces everything under its own name
+                    parameters=[base_params],
+                    remappings=[
+                        ("/robot_description", "description")
+                    ]
+                ),
+                ComposableNode(
+                    package="image_proc",
+                    plugin="image_proc::RectifyNode",
+                    name="rectify",
+                    namespace=intake_camera_ns + "/rgb",
+                    parameters=[base_params],
+                    remappings=[
+                        ("image", "image_raw")
+                    ]
+                ),
+                ComposableNode(
+                    package="image_proc",
+                    plugin="image_proc::RectifyNode",
+                    name="rectify",
+                    namespace=intake_camera_ns + "/stereo",
+                    parameters=[base_params],
+                    remappings=[
+                        ("image", "image_raw")
+                    ]
+                ),
+                ComposableNode(
+                    package="depth_image_proc",
+                    plugin="depth_image_proc::PointCloudXyzrgbNode",
+                    name="point_cloud",
+                    namespace=intake_camera_ns,
+                    parameters=[base_params],
+                    remappings=[
+                        ("depth_registered/image_rect", "stereo/image_rect"), # the OAK registers the depth image for us
+                        ("rgb/image_rect_color", "rgb/image_rect")
+                    ]
+                )
+            ]
+        )
     ]
 
-    nodes.extend(camera_nodes(
-        "front_camera", get_config_path("front_camera_params.yaml"),
-        "/dev/v4l/by-id/usb-046d_081b_64AF26A0-video-index0"
-    ))
+    # nodes.extend(camera_nodes(
+    #     "front_camera", get_config_path("front_camera_params.yaml"),
+    #     "/dev/v4l/by-id/usb-046d_081b_64AF26A0-video-index0"
+    # ))
 
     return LaunchDescription(nodes)

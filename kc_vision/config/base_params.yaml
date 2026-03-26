@@ -3,3 +3,22 @@ tag_consensus:
     max_estimate_age_ms: 500
     update_interval_ms: 20
     consensus_frame_id: "visual_pose_estimate"
+intake_camera:
+  ros__parameters:
+    driver:
+      i_publish_tf_from_calibration: true
+      i_tf_base_frame: intake_camera
+      i_tf_parent_frame: ""
+    pipeline_gen:
+      i_nn_type: none
+      i_pipeline_type: RGBD
+      i_enable_imu: true
+      i_enable_rgbd: true
+      i_enable_diagnostics: true
+    rgb:
+      i_width: 512
+      i_height: 512
+    stereo:
+      i_aligned: true
+      i_width: 512
+      i_height: 512
