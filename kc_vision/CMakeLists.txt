@@ -15,20 +15,22 @@ find_package(rclcpp REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(diagnostic_updater REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(cv_bridge REQUIRED)
+
 find_package(sensor_msgs REQUIRED)
 find_package(apriltag_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(vision_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
-find_package(diagnostic_updater REQUIRED)
-find_package(image_transport REQUIRED)
-find_package(cv_bridge REQUIRED)
+find_package(kc_vision_msgs REQUIRED)
+
 find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
 find_package(depthai 3 REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(kc_vision_msgs REQUIRED)
 
 # the following packages are platform-specific. The Jetson has these set up already,
 # but if you're building locally you'll need an Nvidia GPU, the CUDA toolkit, and
@@ -37,31 +39,29 @@ find_package(CUDA REQUIRED)
 find_package(Thrust REQUIRED)
 
 find_library(NVINFER NAMES nvinfer REQUIRED)
-find_library(NVONNXPARSER NAMES nvonnxparser REQUIRED)
 find_library(NVINFERPLUGIN NAMES nvinfer_plugin REQUIRED)
 
 add_library(TensorRT INTERFACE)
 target_link_libraries(TensorRT INTERFACE
         ${CUDA_LIBRARIES}
         ${NVINFER}
-        ${NVONNXPARSER}
         ${NVINFERPLUGIN}
 )
 target_include_directories(TensorRT INTERFACE
         ${CUDA_INCLUDE_DIRS}
 )
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
+#if(BUILD_TESTING)
+#  find_package(ament_lint_auto REQUIRED)
+#  # the following line skips the linter which checks for copyrights
+#  # comment the line when a copyright and license is added to all source files
+#  set(ament_cmake_copyright_FOUND TRUE)
+#  # the following line skips cpplint (only works in a git repo)
+#  # comment the line when this package is in a git repo and when
+#  # a copyright and license is added to all source files
+#  set(ament_cmake_cpplint_FOUND TRUE)
+#  ament_lint_auto_find_test_dependencies()
+#endif()
 
 add_library(common STATIC src/common/utilities.cpp)
 target_include_directories(common PUBLIC src/common)
@@ -113,30 +113,6 @@ target_link_libraries(ros_nt_bridge PRIVATE
         wpimath
 )
 
-#add_executable(intake_cam
-#        src/intake_cam/intake_cam_node.cpp
-#        src/intake_cam/OakPipeline.cpp
-#        src/intake_cam/InferenceEngine.cpp
-#        src/intake_cam/Displays.cpp
-#        src/intake_cam/DepthDisplay.cpp
-#)
-#target_include_directories(intake_cam PRIVATE
-#        src/intake_cam
-#        ${visualization_msgs_INCLUDE_DIRS}
-#        ${OpenCV_INCLUDE_DIRS}
-#)
-#target_link_libraries(intake_cam PRIVATE
-#        common
-#        rclcpp::rclcpp
-#        ament_index_cpp::ament_index_cpp
-#        depthai::core
-#        wpiutil # included for fmt because fmt::fmt doesn't work now??
-#        TensorRT
-#        Thrust::Thrust
-#        ${visualization_msgs_LIBRARIES}
-#        ${OpenCV_LIBRARIES}
-#)
-
 add_executable(detection_location_calculator src/intake_cam/detection_location_calculator.cpp)
 target_include_directories(detection_location_calculator PRIVATE
         src/intake_cam
@@ -153,31 +129,7 @@ target_link_libraries(detection_location_calculator PRIVATE
         ${vision_msgs_LIBRARIES}
 )
 
-#add_executable(oak_driver src/oak_driver/oak_driver.cpp)
-#target_include_directories(oak_driver PRIVATE
-#        src/oak_driver
-#        ${sensor_msgs_INCLUDE_DIRS}
-#        ${diagnostic_msgs_INCLUDE_DIRS}
-#        ${diagnostic_updater_INCLUDE_DIRS}
-#)
-#target_link_libraries(oak_driver PRIVATE
-#        common
-#        rclcpp::rclcpp
-#        depthai::core
-#        ${sensor_msgs_LIBRARIES}
-#        ${diagnostic_msgs_LIBRARIES}
-#        ${diagnostic_updater_LIBRARIES}
-#)
-
-add_executable(ObjectTracking src/object_tracking.cpp)
-target_include_directories(ObjectTracking PRIVATE ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(ObjectTracking PRIVATE
-        depthai::core
-#        ament_index_cpp::ament_index_cpp
-        ${OpenCV_LIBRARIES}
-)
-
-install(TARGETS solve_pnp tag_consensus ros_nt_bridge ObjectTracking
+install(TARGETS solve_pnp tag_consensus ros_nt_bridge detection_location_calculator
         DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS src/field_urdf_generator/apriltag_urdf_generator.py
