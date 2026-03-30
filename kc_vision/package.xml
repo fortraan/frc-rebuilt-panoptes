@@ -15,7 +15,7 @@
   <depend>ament_index_cpp</depend>
   <depend>sensor_msgs</depend>
   <depend>apriltag_msgs</depend>
-  <depend>depthai</depend>
+  <depend>depthai_v3</depend>
 
   <!-- The following libraries are required as well, but are not in rosdistro: fmt, OpenCV, and wpilib -->
   <!-- Note that OpenCV is a dependency of ROS itself, so it is guaranteed to be installed. -->
@@ -26,6 +26,7 @@
   <exec_depend>image_transport_plugins</exec_depend>
   <exec_depend>apriltag_ros</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>depthai_ros_v3</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

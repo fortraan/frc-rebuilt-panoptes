@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(kc_vision)
+project(kc_vision LANGUAGES CXX)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -14,6 +14,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_eigen REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(diagnostic_updater REQUIRED)
 find_package(image_transport REQUIRED)
@@ -24,6 +25,7 @@ find_package(apriltag_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(vision_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(kc_vision_msgs REQUIRED)
 
 find_package(OpenCV REQUIRED)
@@ -35,20 +37,21 @@ find_package(Eigen3 REQUIRED)
 # the following packages are platform-specific. The Jetson has these set up already,
 # but if you're building locally you'll need an Nvidia GPU, the CUDA toolkit, and
 # TensorRT installed.
-find_package(CUDA REQUIRED)
-find_package(Thrust REQUIRED)
+find_package(CUDAToolkit REQUIRED)
+find_package(Thrust REQUIRED CONFIG)
+thrust_create_target(libraries::Thrust)
 
 find_library(NVINFER NAMES nvinfer REQUIRED)
 find_library(NVINFERPLUGIN NAMES nvinfer_plugin REQUIRED)
 
 add_library(TensorRT INTERFACE)
 target_link_libraries(TensorRT INTERFACE
-        ${CUDA_LIBRARIES}
+        CUDA::cudart
         ${NVINFER}
         ${NVINFERPLUGIN}
 )
 target_include_directories(TensorRT INTERFACE
-        ${CUDA_INCLUDE_DIRS}
+
 )
 
 #if(BUILD_TESTING)
@@ -129,7 +132,63 @@ target_link_libraries(detection_location_calculator PRIVATE
         ${vision_msgs_LIBRARIES}
 )
 
-install(TARGETS solve_pnp tag_consensus ros_nt_bridge detection_location_calculator
+add_executable(fuel_visualizer src/intake_cam/fuel_visualizer.cpp)
+target_include_directories(fuel_visualizer PRIVATE
+        src/intake_cam
+        ${vision_msgs_INCLUDE_DIRS}
+        ${visualization_msgs_INCLUDE_DIRS}
+)
+target_link_libraries(fuel_visualizer PRIVATE
+        common
+        rclcpp::rclcpp
+        ${vision_msgs_LIBRARIES}
+        ${visualization_msgs_LIBRARIES}
+)
+
+add_executable(inference_node src/intake_cam/inference_node.cpp)
+target_include_directories(inference_node PRIVATE
+        src/intake_cam
+        ${sensor_msgs_INCLUDE_DIRS}
+        ${vision_msgs_INCLUDE_DIRS}
+)
+target_link_libraries(inference_node PRIVATE
+        common
+        rclcpp::rclcpp
+        image_transport::image_transport
+        CUDA::cudart
+        TensorRT
+        fmt::fmt
+        ${sensor_msgs_LIBRARIES}
+        ${vision_msgs_LIBRARIES}
+)
+
+add_executable(grid_fuel_detector
+        src/grid_fuel_detector/grid_fuel_detector_node.cpp
+        src/grid_fuel_detector/GridFuelDetector.cpp
+)
+target_include_directories(grid_fuel_detector PRIVATE
+        src/grid_fuel_detector
+        ${OpenCV_INCLUDE_DIRS}
+        ${nav_msgs_INCLUDE_DIRS}
+        ${sensor_msgs_INCLUDE_DIRS}
+)
+target_link_libraries(grid_fuel_detector PRIVATE
+        common
+        rclcpp::rclcpp
+        image_transport::image_transport
+        tf2_ros::tf2_ros
+        tf2_eigen::tf2_eigen
+        CUDA::cudart
+        libraries::Thrust
+        Eigen3::Eigen
+        ${OpenCV_LIBRARIES}
+        ${nav_msgs_LIBRARIES}
+        ${sensor_msgs_LIBRARIES}
+)
+
+install(TARGETS
+        solve_pnp tag_consensus ros_nt_bridge detection_location_calculator
+        fuel_visualizer inference_node
         DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS src/field_urdf_generator/apriltag_urdf_generator.py

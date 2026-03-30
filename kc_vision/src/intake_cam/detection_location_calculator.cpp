@@ -17,6 +17,8 @@
 
 #include <cv_bridge/cv_bridge.h>
 
+#include "utilities.h"
+
 class DetectionLocationCalculator : public rclcpp::Node {
     std::optional<image_transport::ImageTransport> imageTransport;
     std::optional<image_transport::TransportHints> transportHints;
@@ -29,13 +31,25 @@ class DetectionLocationCalculator : public rclcpp::Node {
     std::shared_ptr<const sensor_msgs::msg::CameraInfo> cameraInfo;
     std::shared_ptr<const vision_msgs::msg::Detection2DArray> detections;
 
-    geometry_msgs::msg::Point cameraToWorld(double x, double y, double depth) const {
+    geometry_msgs::msg::Point cameraToWorld(const double xImg, const double yImg, const double depth) const {
+        KC_DEBUG_ASSERT_ROS(get_logger(), cameraInfo != nullptr, "cameraInfo is null!");
+        KC_DEBUG_ASSERT_ROS(get_logger(), depth >= 0, "depth is negative!?");
         geometry_msgs::msg::Point ret;
-        // todo
+        const auto fx = cameraInfo->k[0]; // x focal length
+        const auto fy = cameraInfo->k[3 + 1]; // y focal length
+        // these equations are derived from the pinhole model of a camera
+        ret.x = xImg / (fx / depth);
+        ret.y = yImg / (fy / depth);
+        ret.z = depth;
         return ret;
     }
 
     void onDepthImageReceived(const std::shared_ptr<const sensor_msgs::msg::Image>& msg) {
+        if (cameraInfo == nullptr) {
+            RCLCPP_ERROR(get_logger(), "camera_info hasn't been received yet. Can't process detections!");
+            return;
+        }
+
         const auto depth = cv_bridge::toCvShare(msg);
 
         const auto now = get_clock()->now();
@@ -70,7 +84,7 @@ class DetectionLocationCalculator : public rclcpp::Node {
                 }
             };
             const auto averageDepth = cv::mean(depth->image(roi))[0];
-            pose.pose.position = cameraToWorld(x, y, averageDepth);
+            pose.pose.position = cameraToWorld(x - 0.5 * msg->width, y - 0.5 * msg->height, averageDepth);
             // todo covariance
 
             for (auto& result : detection.results) {
@@ -86,7 +100,7 @@ public:
         declare_parameter<std::string>("image_transport", "raw");
 
         cameraInfoSubscription = create_subscription<sensor_msgs::msg::CameraInfo>(
-            "stereo/camera_info", rclcpp::ServicesQoS(),
+            "rgb/camera_info", rclcpp::ServicesQoS(),
             [this](std::shared_ptr<const sensor_msgs::msg::CameraInfo> msg) {
                 cameraInfo = std::move(msg);
             }

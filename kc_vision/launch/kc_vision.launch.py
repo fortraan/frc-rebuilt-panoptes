@@ -157,7 +157,7 @@ def generate_launch_description():
             executable="component_container",
             composable_node_descriptions=[
                 ComposableNode(
-                    package="depthai_ros_driver",
+                    package="depthai_ros_driver_v3",
                     plugin="depthai_ros_driver::Driver",
                     name=intake_camera_ns, # the driver namespaces everything under its own name
                     parameters=[base_params],
