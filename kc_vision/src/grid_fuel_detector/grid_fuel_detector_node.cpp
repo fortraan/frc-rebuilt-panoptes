@@ -8,9 +8,15 @@
 #include <tf2_ros/transform_listener.hpp>
 #include <tf2_eigen/tf2_eigen.hpp>
 
+#include <image_transport/image_transport.hpp>
+#include <image_transport/subscriber.hpp>
+
+#include <cv_bridge/cv_bridge.hpp>
+
 #include <sensor_msgs/msg/camera_info.hpp>
 
 #include "GridFuelDetector.h"
+#include "utilities.h"
 
 #define VALIDATE_PARAM(condition, msg) do { \
     if (!(condition)) { \
@@ -26,14 +32,17 @@ class GridFuelDetectorNode : public rclcpp::Node {
     std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::CameraInfo>> cameraInfoSubscription;
 
     std::optional<GridFuelDetector> detector;
+    std::optional<image_transport::ImageTransport> imageTransport;
+    std::optional<image_transport::Subscriber> imageSubscriber;
 
     std::string gridFrameId;
     int gridWidth;
     int gridHeight;
     double gridResolution;
 
-    double occupancyThreshold;
-    cv::Scalar hsvLow, hsvHigh;
+    rclcpp::Parameter occupancyThreshold;
+    rclcpp::Parameter hLow, sLow, vLow;
+    rclcpp::Parameter hHigh, sHigh, vHigh;
 
     void onCameraInfoReceived(const std::shared_ptr<const sensor_msgs::msg::CameraInfo>& msg) {
         // make sure we haven't already initialized the detector
@@ -50,8 +59,33 @@ class GridFuelDetectorNode : public rclcpp::Node {
         detector.emplace(
             tform, cv::Size2i(gridWidth, gridHeight), gridResolution,
             cv::Size2i(msg->width, msg->height), intrinsicMatrix,
-            0, cv::Scalar(0), cv::Scalar(0)
+            occupancyThreshold.as_double(), cv::Scalar(
+                hLow.as_int(), sLow.as_int(), vLow.as_int()
+            ), cv::Scalar(
+                hHigh.as_int(), sHigh.as_int(), vHigh.as_int()
+            )
         );
+        imageTransport.emplace(shared_from_this());
+        imageSubscriber.emplace(imageTransport->subscribe(
+            "image_rect", 1, &GridFuelDetectorNode::onFrameReceived, this
+        ));
+    }
+
+    void onFrameReceived(const std::shared_ptr<const sensor_msgs::msg::Image>& msg) {
+        KC_DEBUG_ASSERT_ROS(get_logger(), detector.has_value(), "detector is empty!");
+        detector->occupancyThreshold = occupancyThreshold.as_double();
+        detector->hsvLow = cv::Scalar(
+            static_cast<double>(hLow.as_int()), static_cast<double>(sLow.as_int()), static_cast<double>(vLow.as_int())
+        );
+        detector->hsvHigh = cv::Scalar(
+            static_cast<double>(hHigh.as_int()), static_cast<double>(sHigh.as_int()), static_cast<double>(vHigh.as_int())
+        );
+        const auto cvFrame = cv_bridge::toCvShare(msg);
+        KC_DEBUG_ASSERT_ROS(
+            get_logger(), cvFrame->encoding == sensor_msgs::image_encodings::BGR8, "image has wrong encoding!"
+        );
+        const auto results = detector->processFrame(cvFrame->image);
+        // todo publish results
     }
 
 public:
@@ -63,6 +97,7 @@ public:
             }
         );
 
+        // todo switch to using descriptors
         gridFrameId = declare_parameter<std::string>("grid_frame_id", "");
         VALIDATE_PARAM(!gridFrameId.empty(), "grid_frame_id cannot be empty!");
         gridWidth = declare_parameter<int>("grid_cols", 10);
@@ -71,9 +106,29 @@ public:
         VALIDATE_PARAM(gridHeight > 0, "grid_rows must be greater than zero!");
         gridResolution = declare_parameter<double>("grid_cell_size", 0.1);
         VALIDATE_PARAM(gridResolution > 0, "grid_cell_size must be greater than zero!");
-        occupancyThreshold = declare_parameter("occupancy_threshold", 0.5);
-        hsvLow = {
 
-        };
+        rcl_interfaces::msg::ParameterDescriptor descriptor;
+        descriptor.description = "Threshold at which to consider a grid cell occupied";
+        rcl_interfaces::msg::FloatingPointRange range;
+        range.from_value = 0;
+        range.to_value = 1;
+        descriptor.floating_point_range.push_back(range);
+        declare_parameter<double>("occupancy_threshold", 0.5, descriptor);
+        occupancyThreshold = get_parameter("occupancy_threshold");
+
+        // todo range constraints
+        declare_parameter<int>("h_low", 0);
+        hLow = get_parameter("h_low");
+        declare_parameter<int>("s_low", 0);
+        sLow = get_parameter("s_low");
+        declare_parameter<int>("v_low", 0);
+        vLow = get_parameter("v_low");
+
+        declare_parameter<int>("h_high", 0);
+        hHigh = get_parameter("h_high");
+        declare_parameter<int>("s_high", 0);
+        sHigh = get_parameter("s_high");
+        declare_parameter<int>("v_high", 0);
+        vHigh = get_parameter("v_high");
     }
 };

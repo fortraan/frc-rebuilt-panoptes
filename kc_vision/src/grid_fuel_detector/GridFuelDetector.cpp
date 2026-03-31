@@ -70,6 +70,8 @@ GridFuelDetector::GridFuelDetector(const Eigen::Isometry3d& gridToCamera, const 
 }
 
 Results GridFuelDetector::processFrame(const cv::Mat& frame) const {
+    // todo: reuse buffers
+    // hsv: CV_8UC3, filtered: CV_8UC1 - false: 0, true: 255
     cv::Mat hsv, filtered;
     cv::cvtColor(frame, hsv, cv::COLOR_BGR2HSV);
     cv::inRange(hsv, hsvLow, hsvHigh, filtered);
@@ -80,11 +82,13 @@ Results GridFuelDetector::processFrame(const cv::Mat& frame) const {
         }
     }
     cv::Mat binaryGrid(gridSize, CV_8UC1);
-    cv::threshold(grid, binaryGrid, occupancyThreshold, 1, cv::THRESH_BINARY);
+    cv::threshold(grid, binaryGrid, 255.0 * occupancyThreshold, 255, cv::THRESH_BINARY);
     cv::Mat labels(gridSize, CV_32SC1);
     cv::Mat stats, centroids;
     cv::connectedComponentsWithStats(binaryGrid, labels, stats, centroids);
     return {
+        std::move(grid),
+        std::move(binaryGrid),
         std::move(labels),
         std::move(stats),
         std::move(centroids)

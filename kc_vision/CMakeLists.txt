@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(kc_vision LANGUAGES CXX)
+project(kc_vision)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -178,6 +178,7 @@ target_link_libraries(grid_fuel_detector PRIVATE
         image_transport::image_transport
         tf2_ros::tf2_ros
         tf2_eigen::tf2_eigen
+        cv_bridge::cv_bridge
         CUDA::cudart
         libraries::Thrust
         Eigen3::Eigen

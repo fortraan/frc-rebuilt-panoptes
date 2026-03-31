@@ -16,6 +16,8 @@ struct Cell {
 };
 
 struct Results {
+    cv::Mat occupancy;
+    cv::Mat binaryOccupancy;
     cv::Mat labels;
     cv::Mat stats;
     cv::Mat centroids;
