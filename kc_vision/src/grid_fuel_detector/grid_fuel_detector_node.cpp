@@ -11,7 +11,7 @@
 #include <image_transport/image_transport.hpp>
 #include <image_transport/subscriber.hpp>
 
-#include <cv_bridge/cv_bridge.hpp>
+#include <cv_bridge/cv_bridge.h>
 
 #include <sensor_msgs/msg/camera_info.hpp>
 
@@ -98,7 +98,7 @@ public:
         );
 
         // todo switch to using descriptors
-        gridFrameId = declare_parameter<std::string>("grid_frame_id", "");
+        gridFrameId = declare_parameter<std::string>("grid_frame_id", "front_grid");
         VALIDATE_PARAM(!gridFrameId.empty(), "grid_frame_id cannot be empty!");
         gridWidth = declare_parameter<int>("grid_cols", 10);
         VALIDATE_PARAM(gridWidth > 0, "grid_cols must be greater than zero!");
@@ -117,18 +117,18 @@ public:
         occupancyThreshold = get_parameter("occupancy_threshold");
 
         // todo range constraints
-        declare_parameter<int>("h_low", 0);
+        declare_parameter<int>("h_low", 13);
         hLow = get_parameter("h_low");
-        declare_parameter<int>("s_low", 0);
+        declare_parameter<int>("s_low", 133);
         sLow = get_parameter("s_low");
-        declare_parameter<int>("v_low", 0);
+        declare_parameter<int>("v_low", 161);
         vLow = get_parameter("v_low");
 
-        declare_parameter<int>("h_high", 0);
+        declare_parameter<int>("h_high", 30);
         hHigh = get_parameter("h_high");
-        declare_parameter<int>("s_high", 0);
+        declare_parameter<int>("s_high", 255);
         sHigh = get_parameter("s_high");
-        declare_parameter<int>("v_high", 0);
+        declare_parameter<int>("v_high", 255);
         vHigh = get_parameter("v_high");
     }
 };

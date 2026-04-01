@@ -9,6 +9,8 @@ set(CMAKE_CXX_STANDARD 20)
 # silence warnings from wpilib using an ancient version of CMake
 set(CMAKE_WARN_DEPRECATED OFF)
 
+add_link_options("-Wl,--verbose")
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -116,51 +118,51 @@ target_link_libraries(ros_nt_bridge PRIVATE
         wpimath
 )
 
-add_executable(detection_location_calculator src/intake_cam/detection_location_calculator.cpp)
-target_include_directories(detection_location_calculator PRIVATE
-        src/intake_cam
-        ${sensor_msgs_INCLUDE_DIRS}
-        ${vision_msgs_INCLUDE_DIRS}
-)
-target_link_libraries(detection_location_calculator PRIVATE
-        common
-        rclcpp::rclcpp
-        opencv_core
-        image_transport::image_transport
-        cv_bridge::cv_bridge
-        ${sensor_msgs_LIBRARIES}
-        ${vision_msgs_LIBRARIES}
-)
+#add_executable(detection_location_calculator src/intake_cam/detection_location_calculator.cpp)
+#target_include_directories(detection_location_calculator PRIVATE
+#        src/intake_cam
+#        ${sensor_msgs_INCLUDE_DIRS}
+#        ${vision_msgs_INCLUDE_DIRS}
+#)
+#target_link_libraries(detection_location_calculator PRIVATE
+#        common
+#        rclcpp::rclcpp
+#        opencv_core
+#        image_transport::image_transport
+#        cv_bridge::cv_bridge
+#        ${sensor_msgs_LIBRARIES}
+#        ${vision_msgs_LIBRARIES}
+#)
+#
+#add_executable(fuel_visualizer src/intake_cam/fuel_visualizer.cpp)
+#target_include_directories(fuel_visualizer PRIVATE
+#        src/intake_cam
+#        ${vision_msgs_INCLUDE_DIRS}
+#        ${visualization_msgs_INCLUDE_DIRS}
+#)
+#target_link_libraries(fuel_visualizer PRIVATE
+#        common
+#        rclcpp::rclcpp
+#        ${vision_msgs_LIBRARIES}
+#        ${visualization_msgs_LIBRARIES}
+#)
 
-add_executable(fuel_visualizer src/intake_cam/fuel_visualizer.cpp)
-target_include_directories(fuel_visualizer PRIVATE
-        src/intake_cam
-        ${vision_msgs_INCLUDE_DIRS}
-        ${visualization_msgs_INCLUDE_DIRS}
-)
-target_link_libraries(fuel_visualizer PRIVATE
-        common
-        rclcpp::rclcpp
-        ${vision_msgs_LIBRARIES}
-        ${visualization_msgs_LIBRARIES}
-)
-
-add_executable(inference_node src/intake_cam/inference_node.cpp)
-target_include_directories(inference_node PRIVATE
-        src/intake_cam
-        ${sensor_msgs_INCLUDE_DIRS}
-        ${vision_msgs_INCLUDE_DIRS}
-)
-target_link_libraries(inference_node PRIVATE
-        common
-        rclcpp::rclcpp
-        image_transport::image_transport
-        CUDA::cudart
-        TensorRT
-        fmt::fmt
-        ${sensor_msgs_LIBRARIES}
-        ${vision_msgs_LIBRARIES}
-)
+#add_executable(inference_node src/intake_cam/inference_node.cpp)
+#target_include_directories(inference_node PRIVATE
+#        src/intake_cam
+#        ${sensor_msgs_INCLUDE_DIRS}
+#        ${vision_msgs_INCLUDE_DIRS}
+#)
+#target_link_libraries(inference_node PRIVATE
+#        common
+#        rclcpp::rclcpp
+#        image_transport::image_transport
+#        CUDA::cudart
+#        TensorRT
+#        fmt::fmt
+#        ${sensor_msgs_LIBRARIES}
+#        ${vision_msgs_LIBRARIES}
+#)
 
 add_executable(grid_fuel_detector
         src/grid_fuel_detector/grid_fuel_detector_node.cpp
@@ -179,8 +181,6 @@ target_link_libraries(grid_fuel_detector PRIVATE
         tf2_ros::tf2_ros
         tf2_eigen::tf2_eigen
         cv_bridge::cv_bridge
-        CUDA::cudart
-        libraries::Thrust
         Eigen3::Eigen
         ${OpenCV_LIBRARIES}
         ${nav_msgs_LIBRARIES}
@@ -188,8 +188,7 @@ target_link_libraries(grid_fuel_detector PRIVATE
 )
 
 install(TARGETS
-        solve_pnp tag_consensus ros_nt_bridge detection_location_calculator
-        fuel_visualizer inference_node
+        solve_pnp tag_consensus ros_nt_bridge grid_fuel_detector
         DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS src/field_urdf_generator/apriltag_urdf_generator.py
