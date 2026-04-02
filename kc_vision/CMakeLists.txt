@@ -9,8 +9,6 @@ set(CMAKE_CXX_STANDARD 20)
 # silence warnings from wpilib using an ancient version of CMake
 set(CMAKE_WARN_DEPRECATED OFF)
 
-add_link_options("-Wl,--verbose")
-
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)

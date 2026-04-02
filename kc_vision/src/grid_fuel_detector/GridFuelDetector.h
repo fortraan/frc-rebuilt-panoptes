@@ -4,19 +4,22 @@
 #include <array>
 #include <vector>
 
-#include <opencv2/core/mat.hpp>
+#include <opencv2/core.hpp>
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
 struct Cell {
-    std::array<cv::Point2d, 4> points;
+    int x, y;
+    std::array<cv::Point2i, 4> points;
     cv::Rect2i roi;
     cv::Mat mask;
 };
 
 struct Results {
+    // uint8 occupancy grid. cell values are in the range [0, 255], with an empty cell being 0 and a full cell being 255.
     cv::Mat occupancy;
+    // uint8 binary occupancy grid. an unoccupied cell is set to 0, and an occupied cell is set to 255.
     cv::Mat binaryOccupancy;
     cv::Mat labels;
     cv::Mat stats;
@@ -25,7 +28,7 @@ struct Results {
 
 class GridFuelDetector {
     cv::Size2i gridSize;
-    std::vector<std::vector<Cell>> cells; // stored row-major: [column][row]
+    std::vector<Cell> cells;
 
     void generateGrid(const Eigen::Isometry3d& gridToCamera, double cellSize,
                       const cv::Size2i& imageSize, const Eigen::Matrix3d& intrinsicMatrix);
@@ -42,5 +45,6 @@ public:
 
     Results processFrame(const cv::Mat& frame) const;
 
+    void drawGrid(cv::Mat& mat) const;
 };
 #endif //KC_VISION_GRID_FUEL_DETECTOR_H

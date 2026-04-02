@@ -72,9 +72,9 @@
         <origin xyz="0.145311 -0.303003 0.708814" rpy="-1.5708 0 3.14159"/>
     </joint>
 
-    <joint name="robot_to_front_grid" type="fixed">
-        <parent link="robot"/>
+    <joint name="front_camera_to_front_grid" type="fixed">
+        <parent link="front_camera"/>
         <child link="front_grid"/>
-        <origin xyz="1 1 0"/>
+        <origin xyz="0 0 1" rpy="3.14159 0 -1.5708"/>
     </joint>
 </robot>

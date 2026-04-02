@@ -11,9 +11,17 @@
 #include <image_transport/image_transport.hpp>
 #include <image_transport/subscriber.hpp>
 
+// hack to support compiling on different ROS distros
+#if __has_include(<cv_bridge/cv_bridge.hpp>)
+#include <cv_bridge/cv_bridge.hpp>
+#else
 #include <cv_bridge/cv_bridge.h>
+#endif
 
 #include <sensor_msgs/msg/camera_info.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
+
+#include <opencv2/highgui.hpp>
 
 #include "GridFuelDetector.h"
 #include "utilities.h"
@@ -38,7 +46,7 @@ class GridFuelDetectorNode : public rclcpp::Node {
     std::string gridFrameId;
     int gridWidth;
     int gridHeight;
-    double gridResolution;
+    float gridResolution;
 
     rclcpp::Parameter occupancyThreshold;
     rclcpp::Parameter hLow, sLow, vLow;
@@ -49,7 +57,10 @@ class GridFuelDetectorNode : public rclcpp::Node {
         if (detector) return;
 
         // lookup transform from grid frame to camera optical frame
-        const auto tformMsg = tfBuffer.lookupTransform(msg->header.frame_id, gridFrameId, tf2::TimePointZero);
+        using namespace std::chrono_literals;
+        const auto tformMsg = tfBuffer.lookupTransform(
+            msg->header.frame_id, gridFrameId, tf2::TimePointZero, 5s
+        );
         Eigen::Isometry3d tform = tf2::transformToEigen(tformMsg);
 
         Eigen::Matrix<double, 3, 4, Eigen::RowMajor> p;
@@ -82,10 +93,26 @@ class GridFuelDetectorNode : public rclcpp::Node {
         );
         const auto cvFrame = cv_bridge::toCvShare(msg);
         KC_DEBUG_ASSERT_ROS(
-            get_logger(), cvFrame->encoding == sensor_msgs::image_encodings::BGR8, "image has wrong encoding!"
+            get_logger(), cvFrame->encoding == sensor_msgs::image_encodings::RGB8, "image has wrong encoding!"
         );
         const auto results = detector->processFrame(cvFrame->image);
         // todo publish results
+
+        cv::Mat drawBuffer;
+        cvFrame->image.copyTo(drawBuffer);
+        detector->drawGrid(drawBuffer);
+        cv::imshow("Grid", drawBuffer);
+
+        nav_msgs::msg::OccupancyGrid occupancyGrid;
+        occupancyGrid.header.frame_id = gridFrameId;
+        occupancyGrid.header.stamp = msg->header.stamp;
+        occupancyGrid.info.width = gridWidth;
+        occupancyGrid.info.height = gridHeight;
+        occupancyGrid.info.resolution = gridResolution;
+        occupancyGrid.data.resize(results.occupancy.size().area());
+        cv::Mat dataView(cv::Size(gridWidth, gridHeight), CV_8SC1, occupancyGrid.data.data());
+        // by convention, ROS uses values 0-100
+        results.occupancy.convertTo(dataView, CV_8SC1, 100.0 / 255.0);
     }
 
 public:
@@ -104,7 +131,7 @@ public:
         VALIDATE_PARAM(gridWidth > 0, "grid_cols must be greater than zero!");
         gridHeight = declare_parameter<int>("grid_rows", 10);
         VALIDATE_PARAM(gridHeight > 0, "grid_rows must be greater than zero!");
-        gridResolution = declare_parameter<double>("grid_cell_size", 0.1);
+        gridResolution = declare_parameter<float>("grid_cell_size", 0.1);
         VALIDATE_PARAM(gridResolution > 0, "grid_cell_size must be greater than zero!");
 
         rcl_interfaces::msg::ParameterDescriptor descriptor;
@@ -132,3 +159,13 @@ public:
         vHigh = get_parameter("v_high");
     }
 };
+
+int main(const int argc, const char* const argv[]) {
+    rclcpp::init(argc, argv);
+
+    const auto node = std::make_shared<GridFuelDetectorNode>();
+    rclcpp::spin(node);
+
+    rclcpp::shutdown();
+    return 0;
+}
