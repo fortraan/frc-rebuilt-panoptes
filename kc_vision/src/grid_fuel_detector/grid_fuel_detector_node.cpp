@@ -38,6 +38,7 @@ class GridFuelDetectorNode : public rclcpp::Node {
     tf2_ros::TransformListener tfListener;
 
     std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::CameraInfo>> cameraInfoSubscription;
+    std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>> gridPublisher;
 
     std::optional<GridFuelDetector> detector;
     std::optional<image_transport::ImageTransport> imageTransport;
@@ -47,6 +48,7 @@ class GridFuelDetectorNode : public rclcpp::Node {
     int gridWidth;
     int gridHeight;
     float gridResolution;
+    bool showDebugDisplays;
 
     rclcpp::Parameter occupancyThreshold;
     rclcpp::Parameter hLow, sLow, vLow;
@@ -70,11 +72,7 @@ class GridFuelDetectorNode : public rclcpp::Node {
         detector.emplace(
             tform, cv::Size2i(gridWidth, gridHeight), gridResolution,
             cv::Size2i(msg->width, msg->height), intrinsicMatrix,
-            occupancyThreshold.as_double(), cv::Scalar(
-                hLow.as_int(), sLow.as_int(), vLow.as_int()
-            ), cv::Scalar(
-                hHigh.as_int(), sHigh.as_int(), vHigh.as_int()
-            )
+            showDebugDisplays
         );
         imageTransport.emplace(shared_from_this());
         imageSubscriber.emplace(imageTransport->subscribe(
@@ -96,12 +94,6 @@ class GridFuelDetectorNode : public rclcpp::Node {
             get_logger(), cvFrame->encoding == sensor_msgs::image_encodings::RGB8, "image has wrong encoding!"
         );
         const auto results = detector->processFrame(cvFrame->image);
-        // todo publish results
-
-        cv::Mat drawBuffer;
-        cvFrame->image.copyTo(drawBuffer);
-        detector->drawGrid(drawBuffer);
-        cv::imshow("Grid", drawBuffer);
 
         nav_msgs::msg::OccupancyGrid occupancyGrid;
         occupancyGrid.header.frame_id = gridFrameId;
@@ -111,8 +103,12 @@ class GridFuelDetectorNode : public rclcpp::Node {
         occupancyGrid.info.resolution = gridResolution;
         occupancyGrid.data.resize(results.occupancy.size().area());
         cv::Mat dataView(cv::Size(gridWidth, gridHeight), CV_8SC1, occupancyGrid.data.data());
-        // by convention, ROS uses values 0-100
+        // by convention, ROS uses values 0-100 for occupancy grids
         results.occupancy.convertTo(dataView, CV_8SC1, 100.0 / 255.0);
+
+        gridPublisher->publish(occupancyGrid);
+
+        RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Found %lu clumps", results.clumps.size());
     }
 
 public:
@@ -123,40 +119,64 @@ public:
                 onCameraInfoReceived(msg);
             }
         );
+        gridPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("grid", rclcpp::SensorDataQoS());
 
         // todo switch to using descriptors
-        gridFrameId = declare_parameter<std::string>("grid_frame_id", "front_grid");
-        VALIDATE_PARAM(!gridFrameId.empty(), "grid_frame_id cannot be empty!");
-        gridWidth = declare_parameter<int>("grid_cols", 10);
-        VALIDATE_PARAM(gridWidth > 0, "grid_cols must be greater than zero!");
-        gridHeight = declare_parameter<int>("grid_rows", 10);
-        VALIDATE_PARAM(gridHeight > 0, "grid_rows must be greater than zero!");
-        gridResolution = declare_parameter<float>("grid_cell_size", 0.1);
-        VALIDATE_PARAM(gridResolution > 0, "grid_cell_size must be greater than zero!");
+        gridFrameId = declare_parameter<std::string>("grid.frame_id", "front_grid");
+        VALIDATE_PARAM(!gridFrameId.empty(), "grid.frame_id cannot be empty!");
+        gridWidth = static_cast<int>(declare_parameter<int64_t>("grid.cols", 0));
+        VALIDATE_PARAM(gridWidth > 0, "grid.cols must be greater than zero!");
+        gridHeight = static_cast<int>(declare_parameter<int64_t>("grid.rows", 0));
+        VALIDATE_PARAM(gridHeight > 0, "grid.rows must be greater than zero!");
+        gridResolution = static_cast<float>(declare_parameter<double>("grid.cell_size", 0));
+        VALIDATE_PARAM(gridResolution > 0, "grid.cell_size must be greater than zero!");
+        showDebugDisplays = declare_parameter<bool>("show_debug_displays", false);
 
-        rcl_interfaces::msg::ParameterDescriptor descriptor;
-        descriptor.description = "Threshold at which to consider a grid cell occupied";
-        rcl_interfaces::msg::FloatingPointRange range;
-        range.from_value = 0;
-        range.to_value = 1;
-        descriptor.floating_point_range.push_back(range);
-        declare_parameter<double>("occupancy_threshold", 0.5, descriptor);
-        occupancyThreshold = get_parameter("occupancy_threshold");
+        {
+            rcl_interfaces::msg::ParameterDescriptor descriptor;
+            descriptor.description = "Threshold at which to consider a grid cell occupied";
+            rcl_interfaces::msg::FloatingPointRange range;
+            range.from_value = 0;
+            range.to_value = 1;
+            descriptor.floating_point_range.push_back(range);
+            declare_parameter<double>("occupancy_threshold", 0.5, descriptor);
+            occupancyThreshold = get_parameter("occupancy_threshold");
+        }
 
-        // todo range constraints
-        declare_parameter<int>("h_low", 13);
-        hLow = get_parameter("h_low");
-        declare_parameter<int>("s_low", 133);
-        sLow = get_parameter("s_low");
-        declare_parameter<int>("v_low", 161);
-        vLow = get_parameter("v_low");
+        {
+            rcl_interfaces::msg::ParameterDescriptor descriptor;
+            descriptor.integer_range.emplace_back();
 
-        declare_parameter<int>("h_high", 30);
-        hHigh = get_parameter("h_high");
-        declare_parameter<int>("s_high", 255);
-        sHigh = get_parameter("s_high");
-        declare_parameter<int>("v_high", 255);
-        vHigh = get_parameter("v_high");
+            descriptor.integer_range[0].from_value = 0;
+            descriptor.integer_range[0].to_value = 180;
+            declare_parameter<int>("low.h", 0, descriptor);
+            hLow = get_parameter("low.h");
+
+            descriptor.integer_range[0].from_value = 0;
+            descriptor.integer_range[0].to_value = 255;
+            declare_parameter<int>("low.s", 170, descriptor);
+            sLow = get_parameter("low.s");
+
+            descriptor.integer_range[0].from_value = 0;
+            descriptor.integer_range[0].to_value = 255;
+            declare_parameter<int>("low.v", 115, descriptor);
+            vLow = get_parameter("low.v");
+
+            descriptor.integer_range[0].from_value = 0;
+            descriptor.integer_range[0].to_value = 180;
+            declare_parameter<int>("high.h", 88, descriptor);
+            hHigh = get_parameter("high.h");
+
+            descriptor.integer_range[0].from_value = 0;
+            descriptor.integer_range[0].to_value = 255;
+            declare_parameter<int>("high.s", 255, descriptor);
+            sHigh = get_parameter("high.s");
+
+            descriptor.integer_range[0].from_value = 0;
+            descriptor.integer_range[0].to_value = 255;
+            declare_parameter<int>("high.v", 255, descriptor);
+            vHigh = get_parameter("high.v");
+        }
     }
 };
 

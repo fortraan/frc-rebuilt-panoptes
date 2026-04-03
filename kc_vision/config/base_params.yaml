@@ -22,3 +22,21 @@ intake_camera:
       i_aligned: true
       i_width: 512
       i_height: 512
+/front_camera:
+  grid_fuel_detector:
+    ros__parameters:
+      show_debug_displays: true
+      occupancy_threshold: 0.5
+      low:
+        h: 0
+        s: 170
+        v: 115
+      high:
+        h: 88
+        s: 255
+        v: 255
+      grid:
+        frame_id: "front_grid"
+        cols: 20
+        rows: 20
+        cell_size: 0.025

@@ -16,19 +16,25 @@ struct Cell {
     cv::Mat mask;
 };
 
+struct Clump {
+    int area;
+    cv::Rect2i boundingBox;
+    cv::Point2d centroid;
+};
+
 struct Results {
     // uint8 occupancy grid. cell values are in the range [0, 255], with an empty cell being 0 and a full cell being 255.
     cv::Mat occupancy;
     // uint8 binary occupancy grid. an unoccupied cell is set to 0, and an occupied cell is set to 255.
     cv::Mat binaryOccupancy;
     cv::Mat labels;
-    cv::Mat stats;
-    cv::Mat centroids;
+    std::vector<Clump> clumps;
 };
 
 class GridFuelDetector {
     cv::Size2i gridSize;
     std::vector<Cell> cells;
+    bool showDebugDisplays;
 
     void generateGrid(const Eigen::Isometry3d& gridToCamera, double cellSize,
                       const cv::Size2i& imageSize, const Eigen::Matrix3d& intrinsicMatrix);
@@ -41,10 +47,10 @@ public:
 
     GridFuelDetector(const Eigen::Isometry3d& gridToCamera, const cv::Size2i& gridSize, double cellSize,
                      const cv::Size2i& imageSize, const Eigen::Matrix3d& intrinsicMatrix,
-                     double occupancyThreshold, const cv::Scalar& hsvLow, const cv::Scalar& hsvHigh);
+                     bool showDebugDisplays);
 
-    Results processFrame(const cv::Mat& frame) const;
+    [[nodiscard]] Results processFrame(const cv::Mat& frame) const;
 
-    void drawGrid(cv::Mat& mat) const;
+    void drawGrid(cv::Mat& mat, const cv::Scalar& color = { 255, 255, 255 }) const;
 };
 #endif //KC_VISION_GRID_FUEL_DETECTOR_H
