@@ -79,25 +79,28 @@ GridFuelDetector::GridFuelDetector(const Eigen::Isometry3d& gridToCamera, const 
     generateGrid(gridToCamera, cellSize, imageSize, intrinsicMatrix);
 }
 
-Results GridFuelDetector::processFrame(const cv::Mat& frame) const {
+Results GridFuelDetector::processFrame(const cv::Mat& frame) {
     // todo: reuse buffers
     // hsv: CV_8UC3, filtered: CV_8UC1 - false: 0, true: 255
-    cv::Mat hsv, filtered;
+    if (grid.empty()) grid.create(gridSize, CV_64FC1);
+    if (quantizedGrid.empty()) quantizedGrid.create(gridSize, CV_8UC1);
+    if (binaryGrid.empty()) binaryGrid.create(gridSize, CV_8UC1);
+    if (labels.empty()) labels.create(gridSize, CV_16UC1);
+
     cv::cvtColor(frame, hsv, cv::COLOR_RGB2HSV);
     cv::inRange(hsv, hsvLow, hsvHigh, filtered);
-    cv::Mat grid(gridSize, CV_64FC1, cv::Scalar(0));
+
+    grid.setTo(0);
     for (const auto& cell : cells) {
         grid.at<double>(cell.y, cell.x) = processCell(filtered, cell);
     }
+
     // cv::threshold will output the same type as what it's given as input, so convert to 8U
-    cv::Mat quantizedGrid(gridSize, CV_8U);
     grid.convertTo(quantizedGrid, quantizedGrid.type());
-    cv::Mat binaryGrid(gridSize, CV_8U);
     cv::threshold(quantizedGrid, binaryGrid, 255.0 * occupancyThreshold, 255, cv::THRESH_BINARY);
 
-    cv::Mat labels(gridSize, CV_16U);
     cv::Mat stats, centroids;
-    int numClumps = cv::connectedComponentsWithStats(
+    const int numClumps = cv::connectedComponentsWithStats(
         binaryGrid, labels, stats, centroids, 4, labels.type()
     );
 
@@ -105,25 +108,28 @@ Results GridFuelDetector::processFrame(const cv::Mat& frame) const {
     KC_DEBUG_ASSERT(centroids.type() == CV_64F, "centroids is the wrong type!");
     std::vector<Clump> clumps;
     clumps.reserve(numClumps);
-    for (int i = 0; i < numClumps; i++) {
+    for (uint16_t label = 0; label < numClumps; label++) {
         using enum cv::ConnectedComponentsTypes;
-        clumps.emplace_back(
-            stats.at<int32_t>(i, CC_STAT_AREA),
+        const Clump clump {
+            label,
+            stats.at<int32_t>(label, CC_STAT_AREA),
             cv::Rect2i(
-                stats.at<int32_t>(i, CC_STAT_LEFT),
-                stats.at<int32_t>(i, CC_STAT_TOP),
-                stats.at<int32_t>(i, CC_STAT_WIDTH),
-                stats.at<int32_t>(i, CC_STAT_HEIGHT)
+                stats.at<int32_t>(label, CC_STAT_LEFT),
+                stats.at<int32_t>(label, CC_STAT_TOP),
+                stats.at<int32_t>(label, CC_STAT_WIDTH),
+                stats.at<int32_t>(label, CC_STAT_HEIGHT)
             ),
             cv::Point2d(
-                centroids.at<double>(i, 0),
-                centroids.at<double>(i, 1)
+                centroids.at<double>(label, 0),
+                centroids.at<double>(label, 1)
             )
-        );
+        };
+        if (!clumpIsBackground(label, clump)) {
+            clumps.push_back(clump);
+        }
     }
 
     if (showDebugDisplays) {
-        cv::Mat drawBuffer;
         cv::cvtColor(frame, drawBuffer, cv::COLOR_RGB2BGR);
         drawGrid(drawBuffer);
         cv::imshow("Grid (Color)", drawBuffer);
@@ -136,9 +142,9 @@ Results GridFuelDetector::processFrame(const cv::Mat& frame) const {
     }
 
     return {
-        std::move(grid),
-        std::move(binaryGrid),
-        std::move(labels),
+        grid,
+        binaryGrid,
+        labels,
         std::move(clumps)
     };
 }
@@ -153,4 +159,28 @@ double GridFuelDetector::processCell(const cv::Mat& filtered, const Cell& cell) 
     KC_DEBUG_ASSERT(filtered.channels() == 1, "filtered should be a binary mask!");
     KC_DEBUG_ASSERT(cell.mask.size() == cell.roi.size(), "cell ROI is not the same size as the cell mask!");
     return cv::mean(filtered(cell.roi), cell.mask)[0];
+}
+
+bool GridFuelDetector::clumpIsBackground(const uint16_t label, const Clump& clump) const {
+    KC_DEBUG_ASSERT(binaryGrid.type() == CV_8U, "binaryGrid is the wrong type, UB will occur!");
+    KC_DEBUG_ASSERT(labels.type() == CV_16U, "labels is the wrong type, UB will occur!");
+
+    const auto roi = cv::Rect2i(cv::Point(0, 0), gridSize) & clump.boundingBox;
+    const cv::Mat gridRoI = binaryGrid(roi);
+    const cv::Mat labelRoI = labels(roi);
+
+    // find a cell in the clump
+    for (int row = 0; row < gridRoI.rows; row++) {
+        for (int col = 0; col < gridRoI.cols; col++) {
+            if (labelRoI.at<uint16_t>(row, col) == label) {
+                // if it's the background, then the whole clump is part of the background
+                return gridRoI.at<uint8_t>(row, col) == 0;
+            }
+        }
+    }
+
+    // if we've made it here, then we somehow went through the entire bounding box of the clump without finding the
+    // clump itself. that shouldn't happen, but it if does, the clump should probably be rejected anyways.
+    // todo log a warning
+    return true;
 }

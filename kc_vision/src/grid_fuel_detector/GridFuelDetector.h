@@ -17,6 +17,7 @@ struct Cell {
 };
 
 struct Clump {
+    uint16_t label;
     int area;
     cv::Rect2i boundingBox;
     cv::Point2d centroid;
@@ -24,10 +25,10 @@ struct Clump {
 
 struct Results {
     // uint8 occupancy grid. cell values are in the range [0, 255], with an empty cell being 0 and a full cell being 255.
-    cv::Mat occupancy;
+    const cv::Mat occupancy;
     // uint8 binary occupancy grid. an unoccupied cell is set to 0, and an occupied cell is set to 255.
-    cv::Mat binaryOccupancy;
-    cv::Mat labels;
+    const cv::Mat binaryOccupancy;
+    const cv::Mat labels;
     std::vector<Clump> clumps;
 };
 
@@ -36,10 +37,14 @@ class GridFuelDetector {
     std::vector<Cell> cells;
     bool showDebugDisplays;
 
+    // reused buffers for CV operations
+    cv::Mat hsv, filtered, grid, quantizedGrid, binaryGrid, labels, drawBuffer;
+
     void generateGrid(const Eigen::Isometry3d& gridToCamera, double cellSize,
                       const cv::Size2i& imageSize, const Eigen::Matrix3d& intrinsicMatrix);
 
     static double processCell(const cv::Mat& filtered, const Cell& cell);
+    bool clumpIsBackground(uint16_t label, const Clump& clump) const;
 
 public:
     double occupancyThreshold;
@@ -49,7 +54,7 @@ public:
                      const cv::Size2i& imageSize, const Eigen::Matrix3d& intrinsicMatrix,
                      bool showDebugDisplays);
 
-    [[nodiscard]] Results processFrame(const cv::Mat& frame) const;
+    [[nodiscard]] Results processFrame(const cv::Mat& frame);
 
     void drawGrid(cv::Mat& mat, const cv::Scalar& color = { 255, 255, 255 }) const;
 };

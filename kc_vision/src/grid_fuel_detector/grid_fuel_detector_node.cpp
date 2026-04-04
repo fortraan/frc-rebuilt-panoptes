@@ -82,6 +82,7 @@ class GridFuelDetectorNode : public rclcpp::Node {
 
     void onFrameReceived(const std::shared_ptr<const sensor_msgs::msg::Image>& msg) {
         KC_DEBUG_ASSERT_ROS(get_logger(), detector.has_value(), "detector is empty!");
+        const auto start = get_clock()->now();
         detector->occupancyThreshold = occupancyThreshold.as_double();
         detector->hsvLow = cv::Scalar(
             static_cast<double>(hLow.as_int()), static_cast<double>(sLow.as_int()), static_cast<double>(vLow.as_int())
@@ -94,6 +95,15 @@ class GridFuelDetectorNode : public rclcpp::Node {
             get_logger(), cvFrame->encoding == sensor_msgs::image_encodings::RGB8, "image has wrong encoding!"
         );
         const auto results = detector->processFrame(cvFrame->image);
+        const auto processingTime = get_clock()->now() - start;
+        const double fps = 1.0 / processingTime.seconds();
+        if (fps < 30) {
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "Processing is running slow (%.1f FPS)!", fps);
+        }
+        RCLCPP_INFO_THROTTLE(
+            get_logger(), *get_clock(), 10000, "Processing took %ld ms (%.1f FPS)",
+            processingTime.to_chrono<std::chrono::milliseconds>().count(), fps
+        );
 
         nav_msgs::msg::OccupancyGrid occupancyGrid;
         occupancyGrid.header.frame_id = gridFrameId;
