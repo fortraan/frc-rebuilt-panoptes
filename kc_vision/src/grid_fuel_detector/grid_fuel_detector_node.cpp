@@ -19,6 +19,7 @@
 #include <cv_bridge/cv_bridge.h>
 #endif
 
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
 #include <kc_vision_msgs/msg/clumps.hpp>
@@ -36,27 +37,31 @@
 } while (false)
 
 class GridFuelDetectorNode : public rclcpp::Node {
-    tf2_ros::Buffer tfBuffer;
-    tf2_ros::TransformListener tfListener;
-
-    std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::CameraInfo>> cameraInfoSubscription;
-    std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>> gridPublisher;
-    std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>> labelPublisher;
-    std::shared_ptr<rclcpp::Publisher<kc_vision_msgs::msg::Clumps>> clumpPublisher;
-
-    std::optional<GridFuelDetector> detector;
-    std::optional<image_transport::ImageTransport> imageTransport;
-    std::optional<image_transport::Subscriber> imageSubscriber;
-
     std::string gridFrameId;
     int gridWidth;
     int gridHeight;
     float gridResolution;
     bool showDebugDisplays;
+    std::string hardwareId;
 
     rclcpp::Parameter occupancyThreshold;
     rclcpp::Parameter hLow, sLow, vLow;
     rclcpp::Parameter hHigh, sHigh, vHigh;
+
+    tf2_ros::Buffer tfBuffer;
+    tf2_ros::TransformListener tfListener;
+
+    std::optional<GridFuelDetector> detector;
+    std::optional<image_transport::ImageTransport> imageTransport;
+    std::optional<image_transport::Subscriber> imageSubscriber;
+    std::optional<rclcpp::Duration> processingTime;
+
+    std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::CameraInfo>> cameraInfoSubscription;
+    std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>> gridPublisher;
+    std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>> labelPublisher;
+    std::shared_ptr<rclcpp::Publisher<kc_vision_msgs::msg::Clumps>> clumpPublisher;
+    std::shared_ptr<rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>> diagnosticsPublisher;
+    std::shared_ptr<rclcpp::TimerBase> diagnosticsTimer;
 
     void onCameraInfoReceived(const std::shared_ptr<const sensor_msgs::msg::CameraInfo>& msg) {
         // make sure we haven't already initialized the detector
@@ -99,14 +104,14 @@ class GridFuelDetectorNode : public rclcpp::Node {
             get_logger(), cvFrame->encoding == sensor_msgs::image_encodings::RGB8, "image has wrong encoding!"
         );
         const auto results = detector->processFrame(cvFrame->image);
-        const auto processingTime = get_clock()->now() - start;
-        const double fps = 1.0 / processingTime.seconds();
+        processingTime = get_clock()->now() - start;
+        const double fps = 1.0 / processingTime->seconds();
         if (fps < 30) {
             RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "Processing is running slow (%.1f FPS)!", fps);
         }
         RCLCPP_INFO_THROTTLE(
             get_logger(), *get_clock(), 10000, "Processing took %ld ms (%.1f FPS)",
-            processingTime.to_chrono<std::chrono::milliseconds>().count(), fps
+            processingTime->to_chrono<std::chrono::milliseconds>().count(), fps
         );
 
         kc_vision_msgs::msg::Clumps clumps;
@@ -152,18 +157,40 @@ class GridFuelDetectorNode : public rclcpp::Node {
         RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Found %lu clumps", results.clumps.size());
     }
 
+    void sendDiagnostics() {
+        diagnostic_msgs::msg::DiagnosticArray array;
+        array.header.frame_id = gridFrameId;
+        array.header.stamp = get_clock()->now();
+
+        diagnostic_msgs::msg::DiagnosticStatus status;
+        status.hardware_id = hardwareId;
+        status.name = "Grid Fuel Detector";
+        if (!hardwareId.empty()) {
+            status.name += " (" + hardwareId + ")";
+        }
+        if (!detector) {
+            status.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+            status.message = "Waiting for camera_info";
+        } else {
+            status.message = "Running";
+
+            diagnostic_msgs::msg::KeyValue entry;
+
+            entry.key = "Processing time";
+            entry.value = std::to_string(processingTime->to_chrono<std::chrono::milliseconds>().count()) + " ms";
+            status.values.emplace_back(std::move(entry));
+
+            entry.key = "FPS";
+            entry.value = std::to_string(1.0 / processingTime->seconds());
+            status.values.emplace_back(std::move(entry));
+        }
+        array.status.emplace_back(std::move(status));
+
+        diagnosticsPublisher->publish(array);
+    }
+
 public:
     GridFuelDetectorNode() : Node("grid_fuel_detector"), tfBuffer(get_clock()), tfListener(tfBuffer, this) {
-        cameraInfoSubscription = create_subscription<sensor_msgs::msg::CameraInfo>(
-            "camera_info", rclcpp::QoS(1),
-            [this](std::shared_ptr<const sensor_msgs::msg::CameraInfo> msg) {
-                onCameraInfoReceived(msg);
-            }
-        );
-        gridPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("grid", rclcpp::SensorDataQoS());
-        labelPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("labels", rclcpp::SensorDataQoS());
-        clumpPublisher = create_publisher<kc_vision_msgs::msg::Clumps>("clumps", rclcpp::SensorDataQoS());
-
         // todo switch to using descriptors
         gridFrameId = declare_parameter<std::string>("grid.frame_id", "front_grid");
         VALIDATE_PARAM(!gridFrameId.empty(), "grid.frame_id cannot be empty!");
@@ -174,6 +201,7 @@ public:
         gridResolution = static_cast<float>(declare_parameter<double>("grid.cell_size", 0));
         VALIDATE_PARAM(gridResolution > 0, "grid.cell_size must be greater than zero!");
         showDebugDisplays = declare_parameter<bool>("show_debug_displays", false);
+        hardwareId = declare_parameter<std::string>("hardware_id", get_namespace());
 
         {
             rcl_interfaces::msg::ParameterDescriptor descriptor;
@@ -220,6 +248,23 @@ public:
             declare_parameter<int>("high.v", 255, descriptor);
             vHigh = get_parameter("high.v");
         }
+
+        cameraInfoSubscription = create_subscription<sensor_msgs::msg::CameraInfo>(
+            "camera_info", rclcpp::QoS(1),
+            [this](std::shared_ptr<const sensor_msgs::msg::CameraInfo> msg) {
+                onCameraInfoReceived(msg);
+            }
+        );
+        gridPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("grid", rclcpp::SensorDataQoS());
+        labelPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("labels", rclcpp::SensorDataQoS());
+        clumpPublisher = create_publisher<kc_vision_msgs::msg::Clumps>("clumps", rclcpp::SensorDataQoS());
+        diagnosticsPublisher = create_publisher<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", 1);
+        using namespace std::chrono_literals;
+        diagnosticsTimer = create_timer(1s, [this] {
+            sendDiagnostics();
+        });
+        // send the first batch of diagnostics immediately
+        sendDiagnostics();
     }
 };
 

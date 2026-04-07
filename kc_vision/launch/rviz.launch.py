@@ -19,5 +19,9 @@ def generate_launch_description():
                     "rviz_config.rviz"
                 )
             ]
+        ),
+        Node(
+            package="rqt_runtime_monitor",
+            executable="rqt_runtime_monitor"
         )
     ])

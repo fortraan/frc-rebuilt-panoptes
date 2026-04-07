@@ -172,6 +172,7 @@ target_include_directories(grid_fuel_detector PRIVATE
         ${nav_msgs_INCLUDE_DIRS}
         ${sensor_msgs_INCLUDE_DIRS}
         ${kc_vision_msgs_INCLUDE_DIRS}
+        ${diagnostic_msgs_INCLUDE_DIRS}
 )
 target_link_libraries(grid_fuel_detector PRIVATE
         common
@@ -185,6 +186,7 @@ target_link_libraries(grid_fuel_detector PRIVATE
         ${nav_msgs_LIBRARIES}
         ${sensor_msgs_LIBRARIES}
         ${kc_vision_msgs_LIBRARIES}
+        ${diagnostic_msgs_LIBRARIES}
 )
 
 add_executable(grid_fuel_visualizer src/grid_fuel_detector/grid_fuel_visualizer.cpp)
