@@ -1,3 +1,4 @@
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -20,6 +21,7 @@
 
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <nav_msgs/msg/occupancy_grid.hpp>
+#include <kc_vision_msgs/msg/clumps.hpp>
 
 #include <opencv2/highgui.hpp>
 
@@ -39,6 +41,8 @@ class GridFuelDetectorNode : public rclcpp::Node {
 
     std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::CameraInfo>> cameraInfoSubscription;
     std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>> gridPublisher;
+    std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>> labelPublisher;
+    std::shared_ptr<rclcpp::Publisher<kc_vision_msgs::msg::Clumps>> clumpPublisher;
 
     std::optional<GridFuelDetector> detector;
     std::optional<image_transport::ImageTransport> imageTransport;
@@ -71,7 +75,7 @@ class GridFuelDetectorNode : public rclcpp::Node {
 
         detector.emplace(
             tform, cv::Size2i(gridWidth, gridHeight), gridResolution,
-            cv::Size2i(msg->width, msg->height), intrinsicMatrix,
+            cv::Size2i(static_cast<int>(msg->width), static_cast<int>(msg->height)), intrinsicMatrix,
             showDebugDisplays
         );
         imageTransport.emplace(shared_from_this());
@@ -105,9 +109,29 @@ class GridFuelDetectorNode : public rclcpp::Node {
             processingTime.to_chrono<std::chrono::milliseconds>().count(), fps
         );
 
+        kc_vision_msgs::msg::Clumps clumps;
+        clumps.header.frame_id = gridFrameId;
+        clumps.header.stamp = msg->header.stamp;
+        clumps.clumps.reserve(results.clumps.size());
+        for (const auto& [label, area, boundingBox, centroid] : results.clumps) {
+            kc_vision_msgs::msg::Clump clumpMsg;
+            clumpMsg.area = area;
+            clumpMsg.label = label;
+            clumpMsg.centroid.x = gridResolution * centroid.x;
+            clumpMsg.centroid.y = gridResolution * centroid.y;
+            clumpMsg.centroid.z = 0;
+            clumpMsg.bounding_box.x = gridResolution * static_cast<double>(boundingBox.x);
+            clumpMsg.bounding_box.y = gridResolution * static_cast<double>(boundingBox.y);
+            clumpMsg.bounding_box.width = gridResolution * static_cast<double>(boundingBox.width);
+            clumpMsg.bounding_box.height = gridResolution * static_cast<double>(boundingBox.height);
+            clumps.clumps.push_back(clumpMsg);
+        }
+
+        clumpPublisher->publish(clumps);
+
+        // todo keep and reuse this
         nav_msgs::msg::OccupancyGrid occupancyGrid;
-        occupancyGrid.header.frame_id = gridFrameId;
-        occupancyGrid.header.stamp = msg->header.stamp;
+        occupancyGrid.header = clumps.header;
         occupancyGrid.info.width = gridWidth;
         occupancyGrid.info.height = gridHeight;
         occupancyGrid.info.resolution = gridResolution;
@@ -117,6 +141,13 @@ class GridFuelDetectorNode : public rclcpp::Node {
         results.occupancy.convertTo(dataView, CV_8SC1, 100.0 / 255.0);
 
         gridPublisher->publish(occupancyGrid);
+
+        if (results.clumps.size() > std::numeric_limits<int8_t>::max()) {
+            RCLCPP_WARN(get_logger(), "too many labels to fit in an OccupancyGrid message!");
+        }
+        results.labels.convertTo(dataView, CV_8SC1);
+
+        labelPublisher->publish(occupancyGrid);
 
         RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Found %lu clumps", results.clumps.size());
     }
@@ -130,6 +161,8 @@ public:
             }
         );
         gridPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("grid", rclcpp::SensorDataQoS());
+        gridPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("labels", rclcpp::SensorDataQoS());
+        clumpPublisher = create_publisher<kc_vision_msgs::msg::Clumps>("clumps", rclcpp::SensorDataQoS());
 
         // todo switch to using descriptors
         gridFrameId = declare_parameter<std::string>("grid.frame_id", "front_grid");

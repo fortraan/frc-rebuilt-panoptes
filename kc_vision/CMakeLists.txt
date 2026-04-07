@@ -171,6 +171,7 @@ target_include_directories(grid_fuel_detector PRIVATE
         ${OpenCV_INCLUDE_DIRS}
         ${nav_msgs_INCLUDE_DIRS}
         ${sensor_msgs_INCLUDE_DIRS}
+        ${kc_vision_msgs_INCLUDE_DIRS}
 )
 target_link_libraries(grid_fuel_detector PRIVATE
         common
@@ -183,6 +184,7 @@ target_link_libraries(grid_fuel_detector PRIVATE
         ${OpenCV_LIBRARIES}
         ${nav_msgs_LIBRARIES}
         ${sensor_msgs_LIBRARIES}
+        ${kc_vision_msgs_LIBRARIES}
 )
 
 install(TARGETS

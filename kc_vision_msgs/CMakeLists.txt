@@ -25,6 +25,9 @@ endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
         msg/Observation.msg
+        msg/BoundingBox.msg
+        msg/Clump.msg
+        msg/Clumps.msg
         DEPENDENCIES std_msgs geometry_msgs
 )
 

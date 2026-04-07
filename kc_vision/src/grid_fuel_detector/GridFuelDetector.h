@@ -23,6 +23,8 @@ struct Clump {
     cv::Point2d centroid;
 };
 
+// struct for fuel detection results. these mats refer to internal buffers in the GridFuelDetector object, and will thus
+// be invalidated upon the next call to processFrame.
 struct Results {
     // uint8 occupancy grid. cell values are in the range [0, 255], with an empty cell being 0 and a full cell being 255.
     const cv::Mat occupancy;
@@ -44,7 +46,7 @@ class GridFuelDetector {
                       const cv::Size2i& imageSize, const Eigen::Matrix3d& intrinsicMatrix);
 
     static double processCell(const cv::Mat& filtered, const Cell& cell);
-    bool clumpIsBackground(uint16_t label, const Clump& clump) const;
+    [[nodiscard]] bool clumpIsBackground(uint16_t label, const Clump& clump) const;
 
 public:
     double occupancyThreshold;
