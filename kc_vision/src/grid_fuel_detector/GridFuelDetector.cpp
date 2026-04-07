@@ -18,7 +18,6 @@ void GridFuelDetector::generateGrid(const Eigen::Isometry3d& gridToCamera, const
     const cv::Rect2i imageBounds({ 0, 0 }, imageSize);
 
     cells.reserve(gridSize.area());
-    // todo allow cells to clip outside the frame
     for (int row = 0; row < gridSize.height; row++) {
         const double y = row * cellSize;
         for (int col = 0; col < gridSize.width; col++) {
@@ -108,10 +107,10 @@ Results GridFuelDetector::processFrame(const cv::Mat& frame) {
     KC_DEBUG_ASSERT(centroids.type() == CV_64F, "centroids is the wrong type!");
     std::vector<Clump> clumps;
     clumps.reserve(numClumps);
-    for (uint16_t label = 0; label < numClumps; label++) {
+    for (int label = 0; label < numClumps; label++) {
         using enum cv::ConnectedComponentsTypes;
         const Clump clump {
-            label,
+            static_cast<uint16_t>(label),
             stats.at<int32_t>(label, CC_STAT_AREA),
             cv::Rect2i(
                 stats.at<int32_t>(label, CC_STAT_LEFT),

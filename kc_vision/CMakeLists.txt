@@ -187,8 +187,22 @@ target_link_libraries(grid_fuel_detector PRIVATE
         ${kc_vision_msgs_LIBRARIES}
 )
 
+add_executable(grid_fuel_visualizer src/grid_fuel_detector/grid_fuel_visualizer.cpp)
+target_include_directories(grid_fuel_visualizer PRIVATE
+        ${nav_msgs_INCLUDE_DIRS}
+        ${kc_vision_msgs_INCLUDE_DIRS}
+        ${visualization_msgs_INCLUDE_DIRS}
+)
+target_link_libraries(grid_fuel_visualizer PRIVATE
+        common
+        rclcpp::rclcpp
+        ${nav_msgs_LIBRARIES}
+        ${kc_vision_msgs_LIBRARIES}
+        ${visualization_msgs_LIBRARIES}
+)
+
 install(TARGETS
-        solve_pnp tag_consensus ros_nt_bridge grid_fuel_detector
+        solve_pnp tag_consensus ros_nt_bridge grid_fuel_detector grid_fuel_visualizer
         DESTINATION lib/${PROJECT_NAME}
 )
 install(PROGRAMS src/field_urdf_generator/apriltag_urdf_generator.py

@@ -161,7 +161,7 @@ public:
             }
         );
         gridPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("grid", rclcpp::SensorDataQoS());
-        gridPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("labels", rclcpp::SensorDataQoS());
+        labelPublisher = create_publisher<nav_msgs::msg::OccupancyGrid>("labels", rclcpp::SensorDataQoS());
         clumpPublisher = create_publisher<kc_vision_msgs::msg::Clumps>("clumps", rclcpp::SensorDataQoS());
 
         // todo switch to using descriptors
