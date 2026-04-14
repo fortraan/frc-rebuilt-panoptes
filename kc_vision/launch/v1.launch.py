@@ -202,7 +202,9 @@ def generate_launch_description():
 
     nodes.extend(camera_nodes(
         "front_camera", get_config_path("front_camera_params.yaml"),
-        "/dev/v4l/by-id/usb-046d_081b_64AF26A0-video-index0"
+        # "/dev/v4l/by-id/usb-046d_081b_64AF26A0-video-index0"
+        # "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9281_USB_Camera_UC762-video-index0"
+        "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9782_USB_Camera_UC852-video-index0"
     ))
 
     return LaunchDescription(nodes)

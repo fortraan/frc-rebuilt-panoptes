@@ -197,6 +197,10 @@ namespace {
     }
 }
 
+Observation::Observation(const rclcpp::Time &time, const geometry_msgs::msg::Pose &primaryEstimate,
+    const std::optional<geometry_msgs::msg::Pose> &secondaryEstimate) :
+    time(time), primaryEstimate(primaryEstimate), secondaryEstimate(secondaryEstimate) { }
+
 std::optional<Model> apecs(const std::vector<Observation>& observations) {
     // at least one tag is required for any kind of estimate to be derived.
     if (observations.empty()) return std::nullopt;

@@ -17,6 +17,11 @@ struct Observation {
     rclcpp::Time time;
     geometry_msgs::msg::Pose primaryEstimate;
     std::optional<geometry_msgs::msg::Pose> secondaryEstimate;
+
+    // explicitly defined constructors because clang is throwing a fit over list init
+    Observation() = default;
+    Observation(const rclcpp::Time& time, const geometry_msgs::msg::Pose& primaryEstimate,
+                const std::optional<geometry_msgs::msg::Pose>& secondaryEstimate);
 };
 
 struct Model {

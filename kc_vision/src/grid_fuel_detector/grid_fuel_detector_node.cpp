@@ -260,7 +260,7 @@ public:
         clumpPublisher = create_publisher<kc_vision_msgs::msg::Clumps>("clumps", rclcpp::SensorDataQoS());
         diagnosticsPublisher = create_publisher<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", 1);
         using namespace std::chrono_literals;
-        diagnosticsTimer = create_timer(1s, [this] {
+        diagnosticsTimer = create_wall_timer(1s, [this] {
             sendDiagnostics();
         });
         // send the first batch of diagnostics immediately

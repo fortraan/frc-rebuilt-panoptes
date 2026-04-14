@@ -16,6 +16,7 @@
   <depend>sensor_msgs</depend>
   <depend>apriltag_msgs</depend>
   <depend>depthai_v3</depend>
+  <depend>kc_vision_msgs</depend>
 
   <!-- The following libraries are required as well, but are not in rosdistro: fmt, OpenCV, and wpilib -->
   <!-- Note that OpenCV is a dependency of ROS itself, so it is guaranteed to be installed. -->

@@ -25,7 +25,7 @@ intake_camera:
 /front_camera:
   grid_fuel_detector:
     ros__parameters:
-      show_debug_displays: true
+      show_debug_displays: false
       occupancy_threshold: 0.5
       low:
         h: 0
