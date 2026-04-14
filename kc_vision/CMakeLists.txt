@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.19)
 project(kc_vision)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -37,22 +37,22 @@ find_package(Eigen3 REQUIRED)
 # the following packages are platform-specific. The Jetson has these set up already,
 # but if you're building locally you'll need an Nvidia GPU, the CUDA toolkit, and
 # TensorRT installed.
-find_package(CUDAToolkit REQUIRED)
-find_package(Thrust REQUIRED CONFIG)
-thrust_create_target(libraries::Thrust)
-
-find_library(NVINFER NAMES nvinfer REQUIRED)
-find_library(NVINFERPLUGIN NAMES nvinfer_plugin REQUIRED)
-
-add_library(TensorRT INTERFACE)
-target_link_libraries(TensorRT INTERFACE
-        CUDA::cudart
-        ${NVINFER}
-        ${NVINFERPLUGIN}
-)
-target_include_directories(TensorRT INTERFACE
-
-)
+#find_package(CUDAToolkit REQUIRED)
+#find_package(Thrust REQUIRED CONFIG)
+#thrust_create_target(libraries::Thrust)
+#
+#find_library(NVINFER NAMES nvinfer REQUIRED)
+#find_library(NVINFERPLUGIN NAMES nvinfer_plugin REQUIRED)
+#
+#add_library(TensorRT INTERFACE)
+#target_link_libraries(TensorRT INTERFACE
+#        CUDA::cudart
+#        ${NVINFER}
+#        ${NVINFERPLUGIN}
+#)
+#target_include_directories(TensorRT INTERFACE
+#
+#)
 
 #if(BUILD_TESTING)
 #  find_package(ament_lint_auto REQUIRED)

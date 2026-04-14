@@ -1,5 +1,3 @@
-from sys import executable
-
 from launch import LaunchDescription
 from launch_ros.actions import Node, ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
@@ -7,8 +5,6 @@ from launch.substitutions import FileContent
 
 from ament_index_python.packages import get_package_share_directory
 import os
-
-from math import pi
 
 
 def get_config_path(name):
@@ -79,8 +75,10 @@ def generate_launch_description():
     pkg_share = get_package_share_directory("kc_vision")
     base_params = get_config_path("base_params.yaml")
     intake_camera_ns = "intake_camera"
+    intake_camera_path = "<todo>"
 
     nodes = [
+        # this node publishes a model and description of the robot
         Node(
             package="robot_state_publisher",
             executable="robot_state_publisher",
@@ -96,6 +94,7 @@ def generate_launch_description():
                 }
             ]
         ),
+        # publishes a transform between the fixed frame and the robot frame. only for testing.
         Node(
             package="tf2_ros",
             executable="static_transform_publisher",
@@ -130,13 +129,13 @@ def generate_launch_description():
         # tag_consensus takes the detections provided by the apriltag nodes and computes the camera pose
         # for each tag. it considers all solutions of solvePnP. obvious outliers are rejected, and the
         # remaining solutions are processed with RANSAC to produce a single pose estimate.
-        # Node(
-        #     package="kc_vision",
-        #     executable="tag_consensus",
-        #     name="tag_consensus",
-        #     parameters=[base_params],
-        #     arguments=["--ros-args", "--log-level", "tag_consensus:=DEBUG"]
-        # ),
+        Node(
+            package="kc_vision",
+            executable="tag_consensus",
+            name="tag_consensus",
+            parameters=[base_params],
+            arguments=["--ros-args", "--log-level", "tag_consensus:=DEBUG"]
+        ),
         # ros_nt_bridge connects ROS to NetworkTables. it sends the pose estimate from tag_consensus to
         # the Rio via NetworkTables. additionally, it listens for the fused pose estimate computed by the
         # Rio and publishes it as a TF2 frame.
@@ -145,11 +144,62 @@ def generate_launch_description():
         #     executabe="ros_nt_bridge",
         #     parameters=[base_params]
         # ),
-        # Node(
-        #     package="diagnostic_aggregator",
-        #     executable="aggregator_node",
-        #     name="diag_aggregator"
-        # ),
+
+        # monocular intake camera nodes
+        ComposableNodeContainer(
+            name="container",
+            namespace=intake_camera_ns,
+            package="rclcpp_components",
+            executable="component_container",
+            composable_node_descriptions=[
+                ComposableNode(
+                    package="usb_cam",
+                    plugin="usb_cam::UsbCamNode",
+                    name="usb_cam",
+                    namespace=intake_camera_ns,
+                    parameters=[
+                        base_params,
+                        {
+                            "video_device": os.path.realpath(intake_camera_path)
+                        }
+                    ],
+                    extra_arguments=[{
+                        "use_intra_process_comms": True
+                    }]
+                ),
+                ComposableNode(
+                    package="image_proc",
+                    plugin="image_proc::RectifyNode",
+                    name="rectify",
+                    namespace=intake_camera_ns,
+                    remappings=[
+                        ("image", "image_raw")
+                    ],
+                    parameters=[base_params],
+                    extra_arguments=[{
+                        "use_intra_process_comms": True
+                    }]
+                )
+            ]
+        ),
+
+        # intake camera fuel detection
+        Node(
+            package="kc_vision",
+            executable="grid_fuel_detector",
+            name="fuel_detector",
+            namespace=intake_camera_ns,
+            parameters=[base_params]
+        ),
+        Node(
+            package="kc_vision",
+            executable="grid_fuel_visualizer",
+            name="fuel_visualizer",
+            namespace=intake_camera_ns,
+            parameters=[base_params]
+        ),
+
+        # OAK-D nodes
         # ComposableNodeContainer(
         #     name="container",
         #     package="rclcpp_components",
@@ -198,12 +248,32 @@ def generate_launch_description():
         #         )
         #     ]
         # )
+
+        # system diagnostics
+        Node(
+            package="diagnostic_common_diagnostics",
+            executable="cpu_monitor.py",
+            name="cpu_monitor"
+        ),
+        Node(
+            package="diagnostic_common_diagnostics",
+            executable="ram_monitor.py",
+            name="ram_monitor"
+        ),
+        Node(
+            package="diagnostic_common_diagnostics",
+            executable="sensors_monitor.py",
+            name="orin_sensors_monitor"
+        ),
+        Node(
+            package="diagnostic_aggregator",
+            executable="aggregator_node",
+            name="diag_aggregator"
+        ),
     ]
 
     nodes.extend(camera_nodes(
         "front_camera", get_config_path("front_camera_params.yaml"),
-        # "/dev/v4l/by-id/usb-046d_081b_64AF26A0-video-index0"
-        # "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9281_USB_Camera_UC762-video-index0"
         "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9782_USB_Camera_UC852-video-index0"
     ))
 

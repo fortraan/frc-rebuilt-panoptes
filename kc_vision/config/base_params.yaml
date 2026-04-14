@@ -3,6 +3,7 @@ tag_consensus:
     max_estimate_age_ms: 500
     update_interval_ms: 20
     consensus_frame_id: "visual_pose_estimate"
+
 intake_camera:
   ros__parameters:
     driver:
@@ -22,7 +23,17 @@ intake_camera:
       i_aligned: true
       i_width: 512
       i_height: 512
-/front_camera:
+
+/intake_camera:
+  usb_cam:
+    ros__parameters:
+      framerate: 30.0
+      frame_id: "intake_camera"
+      camera_name: "v1_intake_camera"
+      image_width: 1280
+      image_height: 800
+      camera_info_url: "package://kc_vision/config/camera_calibrations/v1_intake_camera.yaml"
+
   grid_fuel_detector:
     ros__parameters:
       show_debug_displays: false
@@ -36,7 +47,7 @@ intake_camera:
         s: 255
         v: 255
       grid:
-        frame_id: "front_grid"
+        frame_id: "intake_grid"
         cols: 20
         rows: 20
         cell_size: 0.025
