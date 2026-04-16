@@ -60,7 +60,10 @@ namespace {
             return ret;
         }
 
-        KC_DEBUG_ASSERT(quaternions.size() == weights.size(), "quatAverage: # quaternions != # weights!");
+        KC_DEBUG_ASSERT(
+            weights.empty() || quaternions.size() == weights.size(),
+            "quatAverage: # quaternions != # weights!"
+        );
 
         const auto numQuaternions = static_cast<Eigen::Index>(quaternions.size());
         Eigen::Matrix4Xd q = Eigen::Matrix4Xd::Zero(4,  numQuaternions);
@@ -92,6 +95,7 @@ namespace {
 
     rclcpp::Time timeAverage(const std::vector<rclcpp::Time>& times,
                              const std::vector<double>& weights = { }) {
+        // todo weighting
         KC_DEBUG_ASSERT(weights.empty() || weights.size() == times.size(), "# times != # weights!");
         int64_t secondsSum = 0, nanosecondsSum = 0;
         for (const auto& time : times) {
@@ -145,12 +149,12 @@ namespace {
     }
 
     Model apecsTwoPlus(const std::vector<const Observation*>& observations) {
-        const auto predicate = [](const Observation* observation) {
+        const auto hasSecondary = [](const Observation* observation) {
             return observation->secondaryEstimate.has_value();
         };
         std::vector<const Observation*> singlets, duals;
-        std::ranges::copy_if(observations, std::back_inserter(singlets), predicate);
-        std::ranges::copy_if(observations, std::back_inserter(duals), std::not_fn(predicate));
+        std::ranges::copy_if(observations, std::back_inserter(singlets), std::not_fn(hasSecondary));
+        std::ranges::copy_if(observations, std::back_inserter(duals), hasSecondary);
 
         std::vector<std::pair<rclcpp::Time, const Pose*>> singletPairs;
         for (const auto* singlet : singlets) {
@@ -197,8 +201,8 @@ namespace {
     }
 }
 
-Observation::Observation(const rclcpp::Time &time, const geometry_msgs::msg::Pose &primaryEstimate,
-    const std::optional<geometry_msgs::msg::Pose> &secondaryEstimate) :
+Observation::Observation(const rclcpp::Time& time, const geometry_msgs::msg::Pose& primaryEstimate,
+    const std::optional<geometry_msgs::msg::Pose>& secondaryEstimate) :
     time(time), primaryEstimate(primaryEstimate), secondaryEstimate(secondaryEstimate) { }
 
 std::optional<Model> apecs(const std::vector<Observation>& observations) {
