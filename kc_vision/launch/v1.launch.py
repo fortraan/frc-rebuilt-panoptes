@@ -70,7 +70,10 @@ def camera_nodes(namespace, config, camera_id):
                         ("image/camera_info", "camera_info"),
                         ("resized/image_raw", "preview/image_rect"),
                         ("resized/camera_info", "preview/camera_info")
-                    ]
+                    ],
+                    extra_arguments=[{
+                        "use_intra_process_comms": True
+                    }]
                 )
             ]
         ),
@@ -107,18 +110,18 @@ def generate_launch_description():
             ]
         ),
         # publishes a transform between the fixed frame and the robot frame. only for testing.
-        Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            name="debug_robot_pos_broadcaster",
-            parameters=[base_params],
-            arguments=[
-                "--frame-id", "field",
-                "--child-frame-id", "robot",
-                "--x", "8.259",
-                "--y", "4.0215"
-            ]
-        ),
+        # Node(
+        #     package="tf2_ros",
+        #     executable="static_transform_publisher",
+        #     name="debug_robot_pos_broadcaster",
+        #     parameters=[base_params],
+        #     arguments=[
+        #         "--frame-id", "field",
+        #         "--child-frame-id", "robot",
+        #         "--x", "8.259",
+        #         "--y", "4.0215"
+        #     ]
+        # ),
         # this node publishes a model and description of the field
         Node(
             package="robot_state_publisher",
@@ -151,11 +154,12 @@ def generate_launch_description():
         # ros_nt_bridge connects ROS to NetworkTables. it sends the pose estimate from tag_consensus to
         # the Rio via NetworkTables. additionally, it listens for the fused pose estimate computed by the
         # Rio and publishes it as a TF2 frame.
-        # Node(
-        #     package="kc_vision",
-        #     executabe="ros_nt_bridge",
-        #     parameters=[base_params]
-        # ),
+        Node(
+            package="kc_vision",
+            executable="ros_nt_bridge",
+            name="ros_nt_bridge",
+            parameters=[base_params]
+        ),
 
         # monocular intake camera nodes
         ComposableNodeContainer(
@@ -202,7 +206,10 @@ def generate_launch_description():
                         ("image/camera_info", "camera_info"),
                         ("resized/image_raw", "preview/image_rect"),
                         ("resized/camera_info", "preview/camera_info")
-                    ]
+                    ],
+                    extra_arguments=[{
+                        "use_intra_process_comms": True
+                    }]
                 )
             ]
         ),
