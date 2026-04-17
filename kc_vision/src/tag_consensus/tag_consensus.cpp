@@ -132,8 +132,7 @@ class TagConsensus : public rclcpp::Node {
             geometry_msgs::msg::PoseWithCovarianceStamped poseWithCovariance;
             poseWithCovariance.header = transform.header;
             poseWithCovariance.pose.pose = consensus->mean;
-            Eigen::Matrix<double, 6, 6, Eigen::RowMajor> covariance = consensus->variance.asDiagonal();
-            std::ranges::copy_n(covariance.data(), 36, poseWithCovariance.pose.covariance.begin());
+            std::ranges::copy_n(consensus->covariance.data(), 36, poseWithCovariance.pose.covariance.begin());
             posePublisher->publish(poseWithCovariance);
         } else {
             RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "APECS failed to reach consensus!");

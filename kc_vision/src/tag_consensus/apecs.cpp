@@ -14,49 +14,43 @@ using Point = geometry_msgs::msg::Point;
 using Quaternion = geometry_msgs::msg::Quaternion;
 
 namespace {
-    template <typename T>
-    T add(T a, T b) {
-        return a + b;
-    }
-
-    std::pair<Eigen::Vector3d, Eigen::Vector3d> positionStats(const std::vector<const Point*>& positions,
-                                                              const std::vector<double>& weights = { }) {
-        KC_DEBUG_ASSERT(
-            weights.empty() || weights.size() == positions.size(),
-            "positionStats: # positions != # weights!"
-        );
+    std::pair<Eigen::Vector3d, Eigen::Matrix3d> positionStats(const std::vector<const Point*>& positions) {
         KC_DEBUG_ASSERT(!positions.empty(), "no positions provided to positionStats!");
+        KC_DEBUG_ASSERT(positions.size() <= std::numeric_limits<Eigen::Index>::max(), "too many positions!");
 
-        // todo weighting
-        Eigen::Vector3d mean = Eigen::Vector3d::Zero();
-        for (const auto* position : positions) {
-            mean += Eigen::Vector3d(position->x, position->y, position->z);
-        }
-        mean /= static_cast<double>(positions.size());
+        const auto numPositions = static_cast<Eigen::Index>(positions.size());
 
-        // todo actual covariance
-        Eigen::Vector3d variance = Eigen::Vector3d::Zero();
-        for (const auto* position : positions) {
-            variance += (Eigen::Vector3d(position->x, position->y, position->z) - mean).array().square().matrix();
+        // this function will be called multiple times per invocation of apecs() with the same number of positions, so
+        // we can keep a few objects cached to reduce dynamic allocation. we use thread_local here to allow apecs() to
+        // be reentrant.
+        thread_local Eigen::Matrix3Xd mat;
+        mat.resize(Eigen::NoChange, numPositions);
+
+        for (Eigen::Index i = 0; i < numPositions; i++) {
+            mat(0, i) = positions[i]->x;
+            mat(1, i) = positions[i]->y;
+            mat(2, i) = positions[i]->z;
         }
-        if (!weights.empty()) {
-            const double weightSum = std::reduce(weights.begin(), weights.end(), 0, add<double>);
-            variance /= weightSum;
+
+        Eigen::Vector3d mean = mat.rowwise().mean();
+        thread_local Eigen::Matrix3Xd error = mat.colwise() - mean;
+        Eigen::Matrix3d covariance;
+        if (numPositions > 1) {
+            covariance = error * error.transpose() / static_cast<double>(numPositions - 1);
         } else {
-            variance /= static_cast<double>(positions.size());
+            covariance.setZero();
         }
 
         return {
             mean,
-            variance
+            covariance
         };
     }
 
     // references:
     // https://www.acsu.buffalo.edu/%7Ejohnc/ave_quat07.pdf
     // https://stackoverflow.com/questions/12374087/average-of-multiple-quaternions
-    Quaternion quatAverage(const std::vector<const Quaternion*>& quaternions,
-                           const std::vector<double>& weights = { }) {
+    Quaternion quatAverage(const std::vector<const Quaternion*>& quaternions) {
         if (quaternions.empty()) {
             Quaternion ret;
             ret.x = ret.y = ret.z = 0;
@@ -64,27 +58,22 @@ namespace {
             return ret;
         }
 
-        KC_DEBUG_ASSERT(
-            weights.empty() || quaternions.size() == weights.size(),
-            "quatAverage: # quaternions != # weights!"
-        );
-
+        KC_DEBUG_ASSERT(quaternions.size() <= std::numeric_limits<Eigen::Index>::max(), "too many quaternions!");
         const auto numQuaternions = static_cast<Eigen::Index>(quaternions.size());
-        Eigen::Matrix4Xd q = Eigen::Matrix4Xd::Zero(4,  numQuaternions);
+        thread_local Eigen::Matrix4Xd q;
+        q.resize(Eigen::NoChange,  numQuaternions);
+
         for (Eigen::Index i = 0; i < numQuaternions; i++) {
             const auto* quaternion = quaternions[i];
             q(0, i) = quaternion->x;
             q(1, i) = quaternion->y;
             q(2, i) = quaternion->z;
             q(3, i) = quaternion->w;
-            if (!weights.empty()) {
-                q.col(i) *= weights[i];
-            }
         }
 
         // todo it may be possible to derive covariance from the second moment
-        const Eigen::MatrixXd secondMoment = q * q.transpose();
-        const Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> solver(secondMoment);
+        const Eigen::Matrix4d secondMoment = q * q.transpose();
+        const Eigen::SelfAdjointEigenSolver<Eigen::Matrix4d> solver(secondMoment);
         Eigen::Index maxIndex;
         solver.eigenvalues().maxCoeff(&maxIndex);
         const Eigen::Vector4d eigenVector = solver.eigenvectors().col(maxIndex);
@@ -99,10 +88,9 @@ namespace {
         return ret;
     }
 
-    rclcpp::Time timeAverage(const std::vector<rclcpp::Time>& times,
-                             const std::vector<double>& weights = { }) {
-        // todo weighting
-        KC_DEBUG_ASSERT(weights.empty() || weights.size() == times.size(), "# times != # weights!");
+    rclcpp::Time timeAverage(const std::vector<rclcpp::Time>& times) {
+        KC_DEBUG_ASSERT(!times.empty(), "no times provided to timeAverage!");
+
         int64_t secondsSum = 0, nanosecondsSum = 0;
         for (const auto& time : times) {
             const auto secondsDouble = time.seconds();
@@ -124,13 +112,13 @@ namespace {
         };
     }
 
-    Model fitModel(const std::vector<std::pair<rclcpp::Time, const Pose*>>& transforms,
-                   const std::vector<double>& weights = { }) {
-        KC_DEBUG_ASSERT(weights.size() == 0 || weights.size() == transforms.size(), "# weights != # transforms!");
-
-        std::vector<rclcpp::Time> times;
-        std::vector<const Point*> positions;
-        std::vector<const Quaternion*> rotations;
+    Model fitModel(const std::vector<std::pair<rclcpp::Time, const Pose*>>& transforms) {
+        thread_local std::vector<rclcpp::Time> times;
+        thread_local std::vector<const Point*> positions;
+        thread_local std::vector<const Quaternion*> rotations;
+        times.clear();
+        positions.clear();
+        rotations.clear();
         times.reserve(transforms.size());
         positions.reserve(transforms.size());
         rotations.reserve(transforms.size());
@@ -141,17 +129,17 @@ namespace {
         }
         
         const auto timeMean = timeAverage(times);
-        const auto [positionMean, positionVariance] = positionStats(positions, weights);
-        const auto rotationMean = quatAverage(rotations, weights);
+        const auto [positionMean, positionCovariance] = positionStats(positions);
+        const auto rotationMean = quatAverage(rotations);
         
         Model ret;
+        ret.time = timeMean;
         ret.mean.position.x = positionMean[0];
         ret.mean.position.y = positionMean[1];
         ret.mean.position.z = positionMean[2];
         ret.mean.orientation = rotationMean;
-        ret.time = timeMean;
-        std::copy_n(positionVariance.begin(), 3, ret.variance.begin());
-        std::fill_n(ret.variance.begin() + 3, 3, 0); // todo rpy variance
+        ret.covariance.setZero();
+        ret.covariance(Eigen::seqN(0, 3), Eigen::seqN(0, 3)) = positionCovariance;
         return ret;
     }
 
@@ -172,34 +160,22 @@ namespace {
 
         KC_DEBUG_ASSERT(numDuals <= 64, "Too many duals to fit in combination variable!");
 
-        std::optional<Model> singletModel;
-        std::vector<std::pair<rclcpp::Time, const Pose*>> transformCombo;
-        std::vector<double> weights;
-
+        std::vector<std::pair<rclcpp::Time, const Pose*>> singletPairs;
         if (hasSinglets) {
-            std::vector<std::pair<rclcpp::Time, const Pose*>> singletPairs;
+            singletPairs.reserve(numSinglets);
             for (const auto* singlet : singlets) {
                 singletPairs.emplace_back(singlet->time, &singlet->primaryEstimate);
             }
-
-            // precompute average of singlet observation
-            singletModel = fitModel(singletPairs);
-
-            transformCombo.reserve(1 + numDuals);
-            weights.resize(1 + numDuals, 1);
-            weights[0] = static_cast<double>(numSinglets);
-        } else {
-            transformCombo.reserve(numDuals);
-            // leave weights empty, since we don't need to do weighted calculations
         }
 
         std::optional<Model> bestModel;
-
         if (hasDuals) {
+            std::vector<std::pair<rclcpp::Time, const Pose*>> transformCombo;
+            transformCombo.reserve(numSinglets + numDuals);
             const uint64_t numCombinations = 1 << numDuals;
             for (uint64_t combination = 0; combination < numCombinations; combination++) {
                 transformCombo.clear();
-                if (hasSinglets) transformCombo.emplace_back(singletModel->time, &singletModel->mean);
+                if (hasSinglets) std::ranges::copy(singletPairs, std::back_inserter(transformCombo));
                 for (size_t i = 0; i < numDuals; i++) {
                     transformCombo.emplace_back(
                         duals[i]->time,
@@ -208,7 +184,7 @@ namespace {
                     );
                 }
 
-                const auto model = fitModel(transformCombo, weights);
+                const auto model = fitModel(transformCombo);
                 KC_DEBUG_ASSERT(!std::isnan(model.mean.position.x), "model t.x is nan!");
                 KC_DEBUG_ASSERT(!std::isnan(model.mean.position.y), "model t.y is nan!");
                 KC_DEBUG_ASSERT(!std::isnan(model.mean.position.z), "model t.z is nan!");
@@ -216,14 +192,16 @@ namespace {
                 KC_DEBUG_ASSERT(!std::isnan(model.mean.orientation.x), "model q.x is nan!");
                 KC_DEBUG_ASSERT(!std::isnan(model.mean.orientation.y), "model q.y is nan!");
                 KC_DEBUG_ASSERT(!std::isnan(model.mean.orientation.z), "model q.z is nan!");
-                if (!bestModel || model.variance.sum() < bestModel->variance.sum()) {
+                if (!bestModel || model.covariance.diagonal().sum() < bestModel->covariance.diagonal().sum()) {
                     bestModel = model;
                 }
             }
         }
 
+        // if we have both singlets and duals, use the best model that includes both
         if (hasSinglets && hasDuals) return bestModel;
-        if (hasSinglets) return singletModel;
+        // if we've only got singlets, fit a model to them and return it
+        if (hasSinglets) return fitModel(singletPairs);
         return std::nullopt;
     }
 }
@@ -244,7 +222,7 @@ std::optional<Model> apecs(const std::vector<Observation>& observations) {
         return { {
             observations.front().time,
             observations.front().primaryEstimate,
-            Eigen::Vector<double, 6>::Zero()
+            Eigen::Matrix<double, 6, 6>::Zero()
         } };
     }
 
