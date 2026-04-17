@@ -28,3 +28,9 @@
     ros__parameters:
       camera_frame_id: "front_camera"
       pose_prefix: "front_camera/"
+
+  preview:
+    ros__parameters:
+      use_scale: false
+      width: 320.0
+      height: 240.0

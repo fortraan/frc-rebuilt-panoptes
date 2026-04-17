@@ -59,6 +59,18 @@ def camera_nodes(namespace, config, camera_id):
                     extra_arguments=[{
                         "use_intra_process_comms": True
                     }]
+                ),
+                ComposableNode(
+                    package="image_proc",
+                    plugin="image_proc::ResizeNode",
+                    name="preview",
+                    namespace=namespace,
+                    remappings=[
+                        ("image/image_raw", "image_rect"),
+                        ("image/camera_info", "camera_info"),
+                        ("resized/image_raw", "preview/image_rect"),
+                        ("resized/camera_info", "preview/camera_info")
+                    ]
                 )
             ]
         ),
@@ -75,7 +87,7 @@ def generate_launch_description():
     pkg_share = get_package_share_directory("kc_vision")
     base_params = get_config_path("base_params.yaml")
     intake_camera_ns = "intake_camera"
-    intake_camera_path = "<todo>"
+    intake_camera_path = "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9782_USB_Camera_UC852-video-index0"
 
     nodes = [
         # this node publishes a model and description of the robot
@@ -179,6 +191,18 @@ def generate_launch_description():
                     extra_arguments=[{
                         "use_intra_process_comms": True
                     }]
+                ),
+                ComposableNode(
+                    package="image_proc",
+                    plugin="image_proc::ResizeNode",
+                    name="resize",
+                    namespace=intake_camera_ns,
+                    remappings=[
+                        ("image/image_raw", "image_rect"),
+                        ("image/camera_info", "camera_info"),
+                        ("resized/image_raw", "preview/image_rect"),
+                        ("resized/camera_info", "preview/camera_info")
+                    ]
                 )
             ]
         ),
@@ -265,16 +289,16 @@ def generate_launch_description():
             executable="sensors_monitor.py",
             name="orin_sensors_monitor"
         ),
-        Node(
-            package="diagnostic_aggregator",
-            executable="aggregator_node",
-            name="diag_aggregator"
-        ),
+        # Node(
+        #     package="diagnostic_aggregator",
+        #     executable="aggregator_node",
+        #     name="diag_aggregator"
+        # ),
     ]
 
     nodes.extend(camera_nodes(
         "front_camera", get_config_path("front_camera_params.yaml"),
-        "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9782_USB_Camera_UC852-video-index0"
+        "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9281_USB_Camera_UC762-video-index0"
     ))
 
     return LaunchDescription(nodes)

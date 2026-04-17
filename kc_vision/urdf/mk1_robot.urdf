@@ -65,7 +65,7 @@
 
     <joint name="robot_to_intake_camera_interstitial" type="fixed">
         <parent link="robot"/>
-        <child link="intake_camera"/>
+        <child link="intake_camera_interstitial"/>
         <origin xyz="0.251043 0.002469 0.682677" rpy="-1.832596 0 -1.5708"/>
     </joint>
 
@@ -90,6 +90,6 @@
     <joint name="robot_to_intake_grid" type="fixed">
         <parent link="robot"/>
         <child link="intake_grid"/>
-        <origin xyz="1 0 0.1"/>
+        <origin xyz="0.89 -0.3429 0.1"/>
     </joint>
 </robot>

@@ -30,17 +30,18 @@ intake_camera:
       framerate: 30.0
       frame_id: "intake_camera"
       camera_name: "v1_intake_camera"
+      pixel_format: "mjpeg2rgb"
       image_width: 1280
       image_height: 800
       camera_info_url: "package://kc_vision/config/camera_calibrations/v1_intake_camera.yaml"
 
-  grid_fuel_detector:
+  fuel_detector:
     ros__parameters:
-      show_debug_displays: false
+      show_debug_displays: true
       occupancy_threshold: 0.5
       low:
         h: 0
-        s: 170
+        s: 96
         v: 115
       high:
         h: 88
@@ -50,4 +51,10 @@ intake_camera:
         frame_id: "intake_grid"
         cols: 20
         rows: 20
-        cell_size: 0.025
+        cell_size: 0.03429
+
+  resize:
+    ros__parameters:
+      use_scale: false
+      width: 320.0
+      height: 240.0

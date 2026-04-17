@@ -25,6 +25,8 @@ namespace {
             weights.empty() || weights.size() == positions.size(),
             "positionStats: # positions != # weights!"
         );
+        KC_DEBUG_ASSERT(!positions.empty(), "positionStats: no positions!");
+
         Eigen::Vector3d mean = Eigen::Vector3d::Zero();
         for (const auto* position : positions) {
             mean += Eigen::Vector3d(position->x, position->y, position->z);
@@ -85,6 +87,8 @@ namespace {
         solver.eigenvalues().maxCoeff(&maxIndex);
         const Eigen::Vector4d eigenVector = solver.eigenvectors().col(maxIndex);
 
+        KC_DEBUG_ASSERT(!eigenVector.hasNaN(), "quatAverage has nan!");
+
         Quaternion ret;
         ret.x = eigenVector(0);
         ret.y = eigenVector(1);
@@ -143,6 +147,7 @@ namespace {
         ret.mean.position.y = positionMean[1];
         ret.mean.position.z = positionMean[2];
         ret.mean.orientation = rotationMean;
+        ret.time = timeMean;
         std::copy_n(positionVariance.begin(), 3, ret.variance.begin());
         std::fill_n(ret.variance.begin() + 3, 3, 0); // todo rpy variance
         return ret;
@@ -163,6 +168,14 @@ namespace {
         
         // precompute average of singlet observation
         const auto singletModel = fitModel(singletPairs);
+
+        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.position.x), "singlet t.x is nan!");
+        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.position.y), "singlet t.y is nan!");
+        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.position.z), "singlet t.z is nan!");
+        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.orientation.w), "singlet q.w is nan!");
+        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.orientation.x), "singlet q.x is nan!");
+        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.orientation.y), "singlet q.y is nan!");
+        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.orientation.z), "singlet q.z is nan!");
 
         const auto numSinglets = singlets.size();
         const auto numDuals = duals.size();
@@ -191,6 +204,13 @@ namespace {
                 }
 
                 const auto model = fitModel(transformCombo, weights);
+                KC_DEBUG_ASSERT(!std::isnan(model.mean.position.x), "model t.x is nan!");
+                KC_DEBUG_ASSERT(!std::isnan(model.mean.position.y), "model t.y is nan!");
+                KC_DEBUG_ASSERT(!std::isnan(model.mean.position.z), "model t.z is nan!");
+                KC_DEBUG_ASSERT(!std::isnan(model.mean.orientation.w), "model q.w is nan!");
+                KC_DEBUG_ASSERT(!std::isnan(model.mean.orientation.x), "model q.x is nan!");
+                KC_DEBUG_ASSERT(!std::isnan(model.mean.orientation.y), "model q.y is nan!");
+                KC_DEBUG_ASSERT(!std::isnan(model.mean.orientation.z), "model q.z is nan!");
                 if (!bestModel || model.variance.sum() < bestModel->variance.sum()) {
                     bestModel = model;
                 }
