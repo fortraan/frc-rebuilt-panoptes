@@ -25,14 +25,16 @@ namespace {
             weights.empty() || weights.size() == positions.size(),
             "positionStats: # positions != # weights!"
         );
-        KC_DEBUG_ASSERT(!positions.empty(), "positionStats: no positions!");
+        KC_DEBUG_ASSERT(!positions.empty(), "no positions provided to positionStats!");
 
+        // todo weighting
         Eigen::Vector3d mean = Eigen::Vector3d::Zero();
         for (const auto* position : positions) {
             mean += Eigen::Vector3d(position->x, position->y, position->z);
         }
         mean /= static_cast<double>(positions.size());
 
+        // todo actual covariance
         Eigen::Vector3d variance = Eigen::Vector3d::Zero();
         for (const auto* position : positions) {
             variance += (Eigen::Vector3d(position->x, position->y, position->z) - mean).array().square().matrix();
@@ -153,7 +155,9 @@ namespace {
         return ret;
     }
 
-    Model apecsTwoPlus(const std::vector<const Observation*>& observations) {
+    std::optional<Model> apecsTwoPlus(const std::vector<const Observation*>& observations) {
+        KC_DEBUG_ASSERT(!observations.empty(), "apecsTwoPlus requires at least 2 observations");
+
         const auto hasSecondary = [](const Observation* observation) {
             return observation->secondaryEstimate.has_value();
         };
@@ -161,40 +165,41 @@ namespace {
         std::ranges::copy_if(observations, std::back_inserter(singlets), std::not_fn(hasSecondary));
         std::ranges::copy_if(observations, std::back_inserter(duals), hasSecondary);
 
-        std::vector<std::pair<rclcpp::Time, const Pose*>> singletPairs;
-        for (const auto* singlet : singlets) {
-            singletPairs.emplace_back(singlet->time, &singlet->primaryEstimate);
-        }
-        
-        // precompute average of singlet observation
-        const auto singletModel = fitModel(singletPairs);
-
-        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.position.x), "singlet t.x is nan!");
-        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.position.y), "singlet t.y is nan!");
-        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.position.z), "singlet t.z is nan!");
-        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.orientation.w), "singlet q.w is nan!");
-        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.orientation.x), "singlet q.x is nan!");
-        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.orientation.y), "singlet q.y is nan!");
-        KC_DEBUG_ASSERT(!std::isnan(singletModel.mean.orientation.z), "singlet q.z is nan!");
-
         const auto numSinglets = singlets.size();
         const auto numDuals = duals.size();
+        const auto hasSinglets = numSinglets != 0;
+        const auto hasDuals = numDuals != 0;
 
         KC_DEBUG_ASSERT(numDuals <= 64, "Too many duals to fit in combination variable!");
 
+        std::optional<Model> singletModel;
         std::vector<std::pair<rclcpp::Time, const Pose*>> transformCombo;
-        transformCombo.reserve(1 + numDuals);
+        std::vector<double> weights;
 
-        std::vector<double> weights(1 + numDuals, 1);
-        weights[0] = static_cast<double>(numSinglets);
+        if (hasSinglets) {
+            std::vector<std::pair<rclcpp::Time, const Pose*>> singletPairs;
+            for (const auto* singlet : singlets) {
+                singletPairs.emplace_back(singlet->time, &singlet->primaryEstimate);
+            }
+
+            // precompute average of singlet observation
+            singletModel = fitModel(singletPairs);
+
+            transformCombo.reserve(1 + numDuals);
+            weights.resize(1 + numDuals, 1);
+            weights[0] = static_cast<double>(numSinglets);
+        } else {
+            transformCombo.reserve(numDuals);
+            // leave weights empty, since we don't need to do weighted calculations
+        }
 
         std::optional<Model> bestModel;
 
-        if (numDuals != 0) {
+        if (hasDuals) {
             const uint64_t numCombinations = 1 << numDuals;
             for (uint64_t combination = 0; combination < numCombinations; combination++) {
                 transformCombo.clear();
-                transformCombo.emplace_back(singletModel.time, &singletModel.mean);
+                if (hasSinglets) transformCombo.emplace_back(singletModel->time, &singletModel->mean);
                 for (size_t i = 0; i < numDuals; i++) {
                     transformCombo.emplace_back(
                         duals[i]->time,
@@ -217,7 +222,9 @@ namespace {
             }
         }
 
-        return bestModel.value_or(singletModel);
+        if (hasSinglets && hasDuals) return bestModel;
+        if (hasSinglets) return singletModel;
+        return std::nullopt;
     }
 }
 
