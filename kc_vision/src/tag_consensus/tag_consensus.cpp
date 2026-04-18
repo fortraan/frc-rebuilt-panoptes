@@ -61,14 +61,14 @@ class TagConsensus : public rclcpp::Node {
         const auto end = observations.end();
         while  (iter != end) {
             const auto observation = iter->second;
-            /*if (now - observation->header.stamp > maxEstimateAge) {
+            if (now - observation->header.stamp > maxEstimateAge) {
                 // this observation is too old and should be discarded.
                 rejectedForAge++;
                 iter = observations.erase(iter);
                 continue;
-            } else {*/
+            } else {
                 iter++;
-            // }
+            }
 
             // copy into stamped poses because tf2 *INSISTS* on having stamps
             geometry_msgs::msg::PoseStamped primaryTagRelative, secondaryTagRelative;

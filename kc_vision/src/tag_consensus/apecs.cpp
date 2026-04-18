@@ -47,15 +47,24 @@ namespace {
         };
     }
 
+    // reference:
+    // Development of a Real-Time Attitude System Using a Quaternion Parameterization and Non-Dedicated GPS Receivers by
+    // John B. Schleppe, eqn. 4.80 through 4.84d.
+    // https://www.ucalgary.ca/engo_webdocs/GL/96.20096.JSchleppe.pdf
+    Eigen::Matrix<double, 3, 4> quatToEulerJacobian(const Eigen::Vector4d& quaternion) {
+        // todo
+        return Eigen::Matrix<double, 3, 4>::Zero();
+    }
+
     // references:
     // https://www.acsu.buffalo.edu/%7Ejohnc/ave_quat07.pdf
     // https://stackoverflow.com/questions/12374087/average-of-multiple-quaternions
-    Quaternion quatAverage(const std::vector<const Quaternion*>& quaternions) {
+    std::pair<Quaternion, Eigen::Matrix3d> quatAverage(const std::vector<const Quaternion*>& quaternions) {
         if (quaternions.empty()) {
-            Quaternion ret;
-            ret.x = ret.y = ret.z = 0;
-            ret.w = 1;
-            return ret;
+            return {
+                Quaternion(),
+                Eigen::Matrix3d::Zero()
+            };
         }
 
         KC_DEBUG_ASSERT(quaternions.size() <= std::numeric_limits<Eigen::Index>::max(), "too many quaternions!");
@@ -71,21 +80,28 @@ namespace {
             q(3, i) = quaternion->w;
         }
 
-        // todo it may be possible to derive covariance from the second moment
         const Eigen::Matrix4d secondMoment = q * q.transpose();
         const Eigen::SelfAdjointEigenSolver<Eigen::Matrix4d> solver(secondMoment);
         Eigen::Index maxIndex;
         solver.eigenvalues().maxCoeff(&maxIndex);
-        const Eigen::Vector4d eigenVector = solver.eigenvectors().col(maxIndex);
+        const Eigen::Vector4d mean = solver.eigenvectors().col(maxIndex);
+
+        const Eigen::Matrix4d quatCovariance = (q - mean) * (q - mean).transpose();
+        const Eigen::Matrix<double, 3, 4> jacobian = quatToEulerJacobian(mean);
+        const Eigen::Matrix3d rpyCovariance = jacobian * quatCovariance * jacobian.transpose();
 
         KC_DEBUG_ASSERT(!eigenVector.hasNaN(), "quatAverage has nan!");
 
         Quaternion ret;
-        ret.x = eigenVector(0);
-        ret.y = eigenVector(1);
-        ret.z = eigenVector(2);
-        ret.w = eigenVector(3);
-        return ret;
+        ret.x = mean(0);
+        ret.y = mean(1);
+        ret.z = mean(2);
+        ret.w = mean(3);
+
+        return {
+            ret,
+            rpyCovariance
+        };
     }
 
     rclcpp::Time timeAverage(const std::vector<rclcpp::Time>& times) {
@@ -130,7 +146,7 @@ namespace {
         
         const auto timeMean = timeAverage(times);
         const auto [positionMean, positionCovariance] = positionStats(positions);
-        const auto rotationMean = quatAverage(rotations);
+        const auto [rotationMean, rotationCovariance] = quatAverage(rotations);
         
         Model ret;
         ret.time = timeMean;
@@ -140,6 +156,7 @@ namespace {
         ret.mean.orientation = rotationMean;
         ret.covariance.setZero();
         ret.covariance(Eigen::seqN(0, 3), Eigen::seqN(0, 3)) = positionCovariance;
+        ret.covariance(Eigen::seqN(3, 3), Eigen::seqN(3, 3)) = rotationCovariance;
         return ret;
     }
 
