@@ -86,9 +86,14 @@ namespace {
         solver.eigenvalues().maxCoeff(&maxIndex);
         const Eigen::Vector4d mean = solver.eigenvectors().col(maxIndex);
 
-        const Eigen::Matrix4d quatCovariance = (q - mean) * (q - mean).transpose();
-        const Eigen::Matrix<double, 3, 4> jacobian = quatToEulerJacobian(mean);
-        const Eigen::Matrix3d rpyCovariance = jacobian * quatCovariance * jacobian.transpose();
+        Eigen::Matrix3d rpyCovariance;
+        if (numQuaternions > 1) {
+            const Eigen::Matrix4d quatCovariance = (q - mean) * (q - mean).transpose() / static_cast<double>(numQuaternions - 1);
+            const Eigen::Matrix<double, 3, 4> jacobian = quatToEulerJacobian(mean);
+            rpyCovariance = jacobian * quatCovariance * jacobian.transpose();
+        } else {
+            rpyCovariance.setZero();
+        }
 
         KC_DEBUG_ASSERT(!eigenVector.hasNaN(), "quatAverage has nan!");
 
