@@ -27,7 +27,7 @@ struct Observation {
 struct Model {
     rclcpp::Time time;
     geometry_msgs::msg::Pose mean;
-    Eigen::Matrix<double, 6, 6> covariance;
+    Eigen::Matrix<double, 6, 6, Eigen::RowMajor> covariance;
 };
 
 std::optional<Model> apecs(const std::vector<Observation>& observations);

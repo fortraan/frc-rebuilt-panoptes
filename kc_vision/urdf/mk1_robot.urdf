@@ -46,8 +46,11 @@
         </visual>
     </link>
 
+    <link name="oak"/>
+
     <link name="front_camera_interstitial"/>
     <link name="intake_camera_interstitial"/>
+    <link name="oak_interstitial"/>
 
     <link name="intake_grid"/>
 
@@ -91,5 +94,17 @@
         <parent link="robot"/>
         <child link="intake_grid"/>
         <origin xyz="0.89 -0.3429 0.1"/>
+    </joint>
+
+    <joint name="robot_to_oak_interstitial" type="fixed">
+        <parent link="robot"/>
+        <child link="oak_interstitial"/>
+        <origin xyz="0.252628 0.120650 0.708825" rpy="0 0.261799 0"/>
+    </joint>
+
+    <joint name="oak_interstitial_to_oak" type="fixed">
+        <parent link="oak_interstitial"/>
+        <child link="oak"/>
+        <origin rpy="3.14159 0 0"/>
     </joint>
 </robot>

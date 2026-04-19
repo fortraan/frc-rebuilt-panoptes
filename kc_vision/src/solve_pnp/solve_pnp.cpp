@@ -15,7 +15,7 @@
 #include <tf2/LinearMath/Transform.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
-#include <apriltag_msgs/msg/april_tag_detection_array.hpp>
+#include <isaac_ros_apriltag_interfaces/msg/april_tag_detection_array.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <kc_vision_msgs/msg/observation.hpp>
@@ -63,7 +63,7 @@ class SolvePnP : public rclcpp::Node {
     tf2_ros::TransformBroadcaster broadcaster;
 
     std::shared_ptr<rclcpp::Subscription<sensor_msgs::msg::CameraInfo>> cameraInfoSubscription;
-    std::shared_ptr<rclcpp::Subscription<apriltag_msgs::msg::AprilTagDetectionArray>> detectionsSubscription;
+    std::shared_ptr<rclcpp::Subscription<isaac_ros_apriltag_interfaces::msg::AprilTagDetectionArray>> detectionsSubscription;
 
     std::shared_ptr<rclcpp::Publisher<kc_vision_msgs::msg::Observation>> observationPublisher;
 
@@ -108,7 +108,7 @@ class SolvePnP : public rclcpp::Node {
         RCLCPP_INFO_ONCE(get_logger(), "Received camera intrinsics");
     }
 
-    void onReceiveDetections(const apriltag_msgs::msg::AprilTagDetectionArray& detections) {
+    void onReceiveDetections(const isaac_ros_apriltag_interfaces::msg::AprilTagDetectionArray& detections) {
         std::lock_guard lock(intrinsicsMutex);
 
         if (!hasTransform) {
@@ -136,16 +136,18 @@ class SolvePnP : public rclcpp::Node {
             // todo check this with apriltag_ros
             // detections returned by apriltag are in the following order:
             // bottom left, bottom right, top right, top left
+            // detections returned by isaac_ros_apriltag are in the following order:
+            /// top left, top right, bottom right, bottom left
             // OpenCV expects the corners in the following order:
             // top left, top right, bottom right, bottom left
             const auto assignFromApriltag = [&imgPoints, &detection](const int cvIdx, const int aprIndex) {
                 imgPoints(cvIdx, 0) = detection.corners[aprIndex].x;
                 imgPoints(cvIdx, 1) = detection.corners[aprIndex].y;
             };
-            assignFromApriltag(0, 3);
-            assignFromApriltag(1, 2);
-            assignFromApriltag(2, 1);
-            assignFromApriltag(3, 0);
+            assignFromApriltag(0, 0);
+            assignFromApriltag(1, 1);
+            assignFromApriltag(2, 2);
+            assignFromApriltag(3, 3);
 
             // compute possible poses
             std::vector<cv::Matx31d> translations, rotations;
@@ -174,15 +176,21 @@ class SolvePnP : public rclcpp::Node {
             KC_DEBUG_ASSERT_ROS(get_logger(), numPoses == 2, "Incorrect number of returns from IPPE-Square!");
 
             const bool firstIsBetter = reprojectionErrors[0] < reprojectionErrors[1];
-            const auto primary = cvToRosTform(translations[firstIsBetter ? 0 : 1], rotations[firstIsBetter ? 0 : 1]);
-            const auto secondary = cvToRosTform(translations[firstIsBetter ? 1 : 0], rotations[firstIsBetter ? 1 : 0]);
+            const auto primaryIndex = firstIsBetter ? 0 : 1;
+            const auto secondaryIndex = firstIsBetter ? 1 : 0;
+            const auto primary = cvToRosTform(translations[primaryIndex], rotations[primaryIndex]);
+            const auto secondary = cvToRosTform(translations[secondaryIndex], rotations[secondaryIndex]);
 
             kc_vision_msgs::msg::Observation observation;
             observation.header.frame_id = fmt::format("apriltag_{}", detection.id);
             observation.header.stamp = detectionTime;
             observation.id = fmt::format("{}{}", posePrefix, observation.header.frame_id);
             convert(primary, observation.primary);
+            observation.primary_reprojection_error = reprojectionErrors[primaryIndex];
+            observation.primary_range = cv::norm(translations[primaryIndex]);
             convert(secondary, observation.secondary);
+            observation.secondary_reprojection_error = reprojectionErrors[secondaryIndex];
+            observation.secondary_range = cv::norm(translations[secondaryIndex]);
             observationPublisher->publish(observation);
 
             geometry_msgs::msg::TransformStamped transformStamped;
@@ -212,9 +220,9 @@ public:
                 onReceiveCameraInfo(cameraInfo);
             }
         );
-        detectionsSubscription = create_subscription<apriltag_msgs::msg::AprilTagDetectionArray>(
+        detectionsSubscription = create_subscription<isaac_ros_apriltag_interfaces::msg::AprilTagDetectionArray>(
             "detections", rclcpp::SensorDataQoS(),
-            [this](const apriltag_msgs::msg::AprilTagDetectionArray& detections) {
+            [this](const isaac_ros_apriltag_interfaces::msg::AprilTagDetectionArray& detections) {
                 onReceiveDetections(detections);
             }
         );

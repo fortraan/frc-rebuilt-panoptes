@@ -16,11 +16,9 @@
 
   apriltag:
     ros__parameters:
-      # this node is composed with the other image nodes, so compression actually just increases cost
-      image_transport: "raw"
-      family: "36h11"
+      family: "tag36h11"
       size: 0.16475 # side length in meters
-      profile: false
+      # max_tags: 32
 
       pose_estimate_method: "" # set to empty to disable pose estimation
 

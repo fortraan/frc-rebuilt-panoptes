@@ -95,7 +95,7 @@ namespace {
             rpyCovariance.setZero();
         }
 
-        KC_DEBUG_ASSERT(!eigenVector.hasNaN(), "quatAverage has nan!");
+        KC_DEBUG_ASSERT(!mean.hasNaN(), "quatAverage has nan!");
 
         Quaternion ret;
         ret.x = mean(0);
@@ -221,7 +221,7 @@ namespace {
         }
 
         // if we have both singlets and duals, use the best model that includes both
-        if (hasSinglets && hasDuals) return bestModel;
+        if (bestModel.has_value()) return bestModel;
         // if we've only got singlets, fit a model to them and return it
         if (hasSinglets) return fitModel(singletPairs);
         return std::nullopt;

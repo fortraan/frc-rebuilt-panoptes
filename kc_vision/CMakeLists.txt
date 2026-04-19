@@ -21,7 +21,7 @@ find_package(image_transport REQUIRED)
 find_package(cv_bridge REQUIRED)
 
 find_package(sensor_msgs REQUIRED)
-find_package(apriltag_msgs REQUIRED)
+find_package(isaac_ros_apriltag_interfaces REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(vision_msgs REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
@@ -31,7 +31,6 @@ find_package(kc_vision_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(fmt REQUIRED)
 find_package(wpilib REQUIRED)
-find_package(depthai 3 REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 # the following packages are platform-specific. The Jetson has these set up already,
@@ -73,7 +72,7 @@ add_executable(solve_pnp src/solve_pnp/solve_pnp.cpp)
 target_include_directories(solve_pnp PRIVATE
         src/solve_pnp
         ${sensor_msgs_INCLUDE_DIRS}
-        ${apriltag_msgs_INCLUDE_DIRS}
+        ${isaac_ros_apriltag_interfaces_INCLUDE_DIRS}
         ${kc_vision_msgs_INCLUDE_DIRS}
         ${OpenCV_INCLUDE_DIRS}
 )
@@ -84,7 +83,7 @@ target_link_libraries(solve_pnp PRIVATE
         tf2_geometry_msgs::tf2_geometry_msgs
         fmt::fmt
         ${sensor_msgs_LIBRARIES}
-        ${apriltag_msgs_LIBRARIES}
+        ${isaac_ros_apriltag_interfaces_LIBRARIES}
         ${kc_vision_msgs_LIBRARIES}
         ${OpenCV_LIBRARIES}
 )
@@ -96,6 +95,7 @@ add_executable(tag_consensus
 target_include_directories(tag_consensus PRIVATE
         src/tag_consensus
         ${kc_vision_msgs_INCLUDE_DIRS}
+        ${diagnostic_msgs_INCLUDE_DIRS}
 )
 target_link_libraries(tag_consensus PRIVATE
         common
@@ -104,6 +104,7 @@ target_link_libraries(tag_consensus PRIVATE
         Eigen3::Eigen
         tf2_geometry_msgs::tf2_geometry_msgs
         ${kc_vision_msgs_LIBRARIES}
+        ${diagnostic_msgs_LIBRARIES}
 )
 
 add_executable(ros_nt_bridge src/ros_nt_bridge/ros_nt_bridge.cpp)

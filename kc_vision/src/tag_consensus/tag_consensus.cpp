@@ -33,6 +33,8 @@ class TagConsensus : public rclcpp::Node {
     std::unordered_map<std::string, std::shared_ptr<kc_vision_msgs::msg::Observation>> observations;
 
     rclcpp::Duration maxEstimateAge;
+    double maxReprojectionError;
+    double maxRange;
     std::string consensusFrameId;
 
     std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>> posePublisher;
@@ -43,9 +45,11 @@ class TagConsensus : public rclcpp::Node {
         observations[observation->id] = std::move(observation);
     }
 
-    static bool shouldReject(const geometry_msgs::msg::Pose& pose) {
+    bool shouldReject(const geometry_msgs::msg::Pose& pose, double reprojectionError, double range) {
         if (pose.position.z > 1) return true;
-        if (pose.position.z < 0) return true;
+        if (pose.position.z < -0.4) return true;
+        if (reprojectionError >= maxReprojectionError) return true;
+        if (range >= maxRange) return true;
         return false;
     }
 
@@ -54,7 +58,7 @@ class TagConsensus : public rclcpp::Node {
 
         std::vector<Observation> apecsObservations;
 
-        RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 3000, "Performing APECS with %lu observations", observations.size());
+        RCLCPP_DEBUG(get_logger(), "Performing APECS with %lu observations", observations.size());
 
         int rejectedForAge = 0;
         auto iter = observations.begin();
@@ -87,8 +91,8 @@ class TagConsensus : public rclcpp::Node {
                 tf2::TimePointZero, observation->header.frame_id
             );
 
-            const auto primaryRejected = shouldReject(primary.pose);
-            const auto secondaryRejected = shouldReject(secondary.pose);
+            const auto primaryRejected = shouldReject(primary.pose, observation->primary_reprojection_error, observation->primary_range);
+            const auto secondaryRejected = shouldReject(secondary.pose, observation->secondary_reprojection_error, observation->secondary_range);
 
             if (primaryRejected && secondaryRejected) {
                 // both transforms rejected. don't do anything with this observation.
@@ -115,7 +119,7 @@ class TagConsensus : public rclcpp::Node {
             }
         }
 
-        RCLCPP_DEBUG_THROTTLE(get_logger(), *get_clock(), 2000, "Rejected %d old observations", rejectedForAge);
+        RCLCPP_DEBUG(get_logger(), "Rejected %d old observations. %lu left", rejectedForAge, apecsObservations.size());
 
         const auto consensus = apecs(apecsObservations);
         if (consensus) {
@@ -135,7 +139,7 @@ class TagConsensus : public rclcpp::Node {
             std::ranges::copy_n(consensus->covariance.data(), 36, poseWithCovariance.pose.covariance.begin());
             posePublisher->publish(poseWithCovariance);
         } else {
-            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "APECS failed to reach consensus!");
+            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 300, "APECS failed to reach consensus!");
         }
     }
 
@@ -146,6 +150,8 @@ public:
         maxEstimateAge = std::chrono::milliseconds(declare_parameter<int64_t>(
             "max_estimate_age_ms", 60
         ));
+        maxReprojectionError = declare_parameter<double>("max_reprojection_error", 10);
+        maxRange = declare_parameter<double>("max_range", 4);
 
         const auto updateInterval = std::chrono::milliseconds(declare_parameter<int64_t>(
             "update_interval_ms", 20

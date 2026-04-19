@@ -39,41 +39,45 @@ def camera_nodes(namespace, config, camera_id):
                     }]
                 ),
                 ComposableNode(
-                    package="image_proc",
-                    plugin="image_proc::RectifyNode",
+                    package="isaac_ros_image_proc",
+                    plugin="nvidia::isaac_ros::image_proc::RectifyNode",
                     name="rectify",
                     namespace=namespace,
                     remappings=[
                         ("image", "image_raw")
                     ],
-                    extra_arguments=[{
-                        "use_intra_process_comms": True
-                    }]
+                    # extra_arguments=[{
+                    #     "use_intra_process_comms": True
+                    # }]
                 ),
                 ComposableNode(
-                    package="apriltag_ros",
-                    plugin="AprilTagNode",
+                    package="isaac_ros_apriltag",
+                    plugin="nvidia::isaac_ros::apriltag::AprilTagNode",
                     name="apriltag",
                     namespace=namespace,
                     parameters=[config],
-                    extra_arguments=[{
-                        "use_intra_process_comms": True
-                    }]
+                    remappings=[
+                        ("image", "image_rect"),
+                        ("tag_detections", "detections"),
+                        ("tf", "/tf")
+                    ]
+                    # extra_arguments=[{
+                    #     "use_intra_process_comms": True
+                    # }]
                 ),
                 ComposableNode(
-                    package="image_proc",
-                    plugin="image_proc::ResizeNode",
+                    package="isaac_ros_image_proc",
+                    plugin="nvidia::isaac_ros::image_proc::ResizeNode",
                     name="preview",
                     namespace=namespace,
                     remappings=[
-                        ("image/image_raw", "image_rect"),
-                        ("image/camera_info", "camera_info"),
-                        ("resized/image_raw", "preview/image_rect"),
-                        ("resized/camera_info", "preview/camera_info")
+                        ("image", "image_rect"),
+                        ("resize/image_raw", "preview/image_rect"),
+                        ("resize/camera_info", "preview/camera_info")
                     ],
-                    extra_arguments=[{
-                        "use_intra_process_comms": True
-                    }]
+                    # extra_arguments=[{
+                    #     "use_intra_process_comms": True
+                    # }]
                 )
             ]
         ),
@@ -90,6 +94,7 @@ def generate_launch_description():
     pkg_share = get_package_share_directory("kc_vision")
     base_params = get_config_path("base_params.yaml")
     intake_camera_ns = "intake_camera"
+    oak_ns = "oak"
     intake_camera_path = "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9782_USB_Camera_UC852-video-index0"
 
     nodes = [
@@ -109,19 +114,6 @@ def generate_launch_description():
                 }
             ]
         ),
-        # publishes a transform between the fixed frame and the robot frame. only for testing.
-        # Node(
-        #     package="tf2_ros",
-        #     executable="static_transform_publisher",
-        #     name="debug_robot_pos_broadcaster",
-        #     parameters=[base_params],
-        #     arguments=[
-        #         "--frame-id", "field",
-        #         "--child-frame-id", "robot",
-        #         "--x", "8.259",
-        #         "--y", "4.0215"
-        #     ]
-        # ),
         # this node publishes a model and description of the field
         Node(
             package="robot_state_publisher",
@@ -149,7 +141,7 @@ def generate_launch_description():
             executable="tag_consensus",
             name="tag_consensus",
             parameters=[base_params],
-            arguments=["--ros-args", "--log-level", "tag_consensus:=DEBUG"]
+            arguments=["--ros-args", "--log-level", "tag_consensus:=INFO"]
         ),
         # ros_nt_bridge connects ROS to NetworkTables. it sends the pose estimate from tag_consensus to
         # the Rio via NetworkTables. additionally, it listens for the fused pose estimate computed by the
@@ -184,32 +176,28 @@ def generate_launch_description():
                     }]
                 ),
                 ComposableNode(
-                    package="image_proc",
-                    plugin="image_proc::RectifyNode",
+                    package="isaac_ros_image_proc",
+                    plugin="nvidia::isaac_ros::image_proc::RectifyNode",
                     name="rectify",
                     namespace=intake_camera_ns,
-                    remappings=[
-                        ("image", "image_raw")
-                    ],
                     parameters=[base_params],
-                    extra_arguments=[{
-                        "use_intra_process_comms": True
-                    }]
+                    # extra_arguments=[{
+                    #     "use_intra_process_comms": True
+                    # }]
                 ),
                 ComposableNode(
-                    package="image_proc",
-                    plugin="image_proc::ResizeNode",
-                    name="resize",
+                    package="isaac_ros_image_proc",
+                    plugin="nvidia::isaac_ros::image_proc::ResizeNode",
+                    name="preview",
                     namespace=intake_camera_ns,
                     remappings=[
-                        ("image/image_raw", "image_rect"),
-                        ("image/camera_info", "camera_info"),
-                        ("resized/image_raw", "preview/image_rect"),
-                        ("resized/camera_info", "preview/camera_info")
+                        ("image", "image_rect"),
+                        ("resize/image_raw", "preview/image_rect"),
+                        ("resize/camera_info", "preview/camera_info")
                     ],
-                    extra_arguments=[{
-                        "use_intra_process_comms": True
-                    }]
+                    # extra_arguments=[{
+                    #     "use_intra_process_comms": True
+                    # }]
                 )
             ]
         ),
@@ -227,20 +215,22 @@ def generate_launch_description():
             executable="grid_fuel_visualizer",
             name="fuel_visualizer",
             namespace=intake_camera_ns,
-            parameters=[base_params]
+            parameters=[base_params],
+            respawn=True,
+            respawn_delay=1.0
         ),
 
         # OAK-D nodes
         # ComposableNodeContainer(
         #     name="container",
         #     package="rclcpp_components",
-        #     namespace=intake_camera_ns,
+        #     namespace=oak_ns,
         #     executable="component_container",
         #     composable_node_descriptions=[
         #         ComposableNode(
         #             package="depthai_ros_driver_v3",
         #             plugin="depthai_ros_driver::Driver",
-        #             name=intake_camera_ns, # the driver namespaces everything under its own name
+        #             name=oak_ns, # the driver namespaces everything under its own name
         #             parameters=[base_params],
         #             remappings=[
         #                 ("/robot_description", "description")
@@ -250,7 +240,7 @@ def generate_launch_description():
         #             package="image_proc",
         #             plugin="image_proc::RectifyNode",
         #             name="rectify",
-        #             namespace=intake_camera_ns + "/rgb",
+        #             namespace=oak_ns + "/rgb",
         #             parameters=[base_params],
         #             remappings=[
         #                 ("image", "image_raw")
@@ -260,7 +250,7 @@ def generate_launch_description():
         #             package="image_proc",
         #             plugin="image_proc::RectifyNode",
         #             name="rectify",
-        #             namespace=intake_camera_ns + "/stereo",
+        #             namespace=oak_ns + "/stereo",
         #             parameters=[base_params],
         #             remappings=[
         #                 ("image", "image_raw")
@@ -270,7 +260,7 @@ def generate_launch_description():
         #             package="depth_image_proc",
         #             plugin="depth_image_proc::PointCloudXyzrgbNode",
         #             name="point_cloud",
-        #             namespace=intake_camera_ns,
+        #             namespace=oak_ns,
         #             parameters=[base_params],
         #             remappings=[
         #                 ("depth_registered/image_rect", "stereo/image_rect"), # the OAK registers the depth image for us
@@ -278,7 +268,7 @@ def generate_launch_description():
         #             ]
         #         )
         #     ]
-        # )
+        # ),
 
         # system diagnostics
         Node(
@@ -296,6 +286,11 @@ def generate_launch_description():
             executable="sensors_monitor.py",
             name="orin_sensors_monitor"
         ),
+        # Node(
+        #     package="isaac_ros_jetson_stats",
+        #     executable="jtop",
+        #     name="jetson_diagnostics"
+        # ),
         # Node(
         #     package="diagnostic_aggregator",
         #     executable="aggregator_node",
