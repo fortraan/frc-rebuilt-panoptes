@@ -103,6 +103,7 @@ target_link_libraries(tag_consensus PRIVATE
         tf2_ros::tf2_ros
         Eigen3::Eigen
         tf2_geometry_msgs::tf2_geometry_msgs
+        fmt::fmt
         ${kc_vision_msgs_LIBRARIES}
         ${diagnostic_msgs_LIBRARIES}
 )
