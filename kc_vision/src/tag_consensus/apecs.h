@@ -5,7 +5,9 @@
 #include <vector>
 
 #include <rclcpp/time.hpp>
+#include <rclcpp/logging.hpp>
 #include <geometry_msgs/msg/pose.hpp>
+#include <diagnostic_msgs/msg/diagnostic_status.hpp>
 
 #include <Eigen/Dense>
 
@@ -30,6 +32,7 @@ struct Model {
     Eigen::Matrix<double, 6, 6, Eigen::RowMajor> covariance;
 };
 
-std::optional<Model> apecs(const std::vector<Observation>& observations);
+std::optional<Model> apecs(const std::vector<Observation>& observations, rclcpp::Logger logger,
+    diagnostic_msgs::msg::DiagnosticStatus diagnostics);
 
 #endif //KC_VISION_APECS_H

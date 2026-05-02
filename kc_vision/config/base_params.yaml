@@ -1,7 +1,7 @@
 tag_consensus:
   ros__parameters:
     max_estimate_age_ms: 2000
-    max_reprojection_error: 0.125
+    max_reprojection_error: 0.3
     max_range: 5.0
     update_interval_ms: 10
     consensus_frame_id: "visual_pose_estimate"

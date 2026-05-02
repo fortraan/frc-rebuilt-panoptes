@@ -60,7 +60,7 @@ def camera_nodes(namespace, config, camera_id):
                         ("image", "image_rect"),
                         ("tag_detections", "detections"),
                         ("tf", "/tf")
-                    ]
+                    ],
                     # extra_arguments=[{
                     #     "use_intra_process_comms": True
                     # }]
@@ -79,14 +79,18 @@ def camera_nodes(namespace, config, camera_id):
                     #     "use_intra_process_comms": True
                     # }]
                 )
-            ]
+            ],
+            respawn=True,
+            respawn_delay=5.0
         ),
         # solve_pnp computes camera poses from apriltag detections and publishes them to the frame tree
         Node(
             package="kc_vision",
             executable="solve_pnp",
             namespace=namespace,
-            parameters=[config]
+            parameters=[config],
+            respawn=True,
+            respawn_delay=1.0
         ),
     ]
 
@@ -112,7 +116,9 @@ def generate_launch_description():
                         "mk1_robot.urdf"
                     )),
                 }
-            ]
+            ],
+            respawn=True,
+            respawn_delay=1.0
         ),
         # this node publishes a model and description of the field
         Node(
@@ -131,7 +137,9 @@ def generate_launch_description():
                 # this node isn't publishing the description of the actual robot, so remap its topics
                 ("/robot_description", "/field_description"),
                 ("/joint_states", "/field_joint_states")
-            ]
+            ],
+            respawn=True,
+            respawn_delay=1.0
         ),
         # tag_consensus takes the detections provided by the apriltag nodes and computes the camera pose
         # for each tag. it considers all solutions of solvePnP. obvious outliers are rejected, and the
@@ -141,7 +149,9 @@ def generate_launch_description():
             executable="tag_consensus",
             name="tag_consensus",
             parameters=[base_params],
-            arguments=["--ros-args", "--log-level", "tag_consensus:=INFO"]
+            arguments=["--ros-args", "--log-level", "tag_consensus:=DEBUG"],
+            respawn=True,
+            respawn_delay=1.0
         ),
         # ros_nt_bridge connects ROS to NetworkTables. it sends the pose estimate from tag_consensus to
         # the Rio via NetworkTables. additionally, it listens for the fused pose estimate computed by the
@@ -150,7 +160,9 @@ def generate_launch_description():
             package="kc_vision",
             executable="ros_nt_bridge",
             name="ros_nt_bridge",
-            parameters=[base_params]
+            parameters=[base_params],
+            respawn=True,
+            respawn_delay=1.0
         ),
 
         # monocular intake camera nodes
@@ -208,7 +220,9 @@ def generate_launch_description():
             executable="grid_fuel_detector",
             name="fuel_detector",
             namespace=intake_camera_ns,
-            parameters=[base_params]
+            parameters=[base_params],
+            respawn=True,
+            respawn_delay=1.0
         ),
         Node(
             package="kc_vision",
@@ -274,27 +288,37 @@ def generate_launch_description():
         Node(
             package="diagnostic_common_diagnostics",
             executable="cpu_monitor.py",
-            name="cpu_monitor"
+            name="cpu_monitor",
+            respawn=True,
+            respawn_delay=1.0
         ),
         Node(
             package="diagnostic_common_diagnostics",
             executable="ram_monitor.py",
-            name="ram_monitor"
+            name="ram_monitor",
+            respawn=True,
+            respawn_delay=1.0
         ),
         Node(
             package="diagnostic_common_diagnostics",
             executable="sensors_monitor.py",
-            name="orin_sensors_monitor"
+            name="orin_sensors_monitor",
+            respawn=True,
+            respawn_delay=1.0
         ),
         # Node(
         #     package="isaac_ros_jetson_stats",
         #     executable="jtop",
-        #     name="jetson_diagnostics"
+        #     name="jetson_diagnostics",
+        #     respawn=True,
+        #     respawn_delay=1.0
         # ),
         # Node(
         #     package="diagnostic_aggregator",
         #     executable="aggregator_node",
-        #     name="diag_aggregator"
+        #     name="diag_aggregator",
+        #     respawn=True,
+        #     respawn_delay=1.0
         # ),
     ]
 
