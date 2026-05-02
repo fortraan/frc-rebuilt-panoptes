@@ -1,8 +1,4 @@
 std_msgs/Header header
 string id
-geometry_msgs/Pose primary
-float64 primary_reprojection_error
-float64 primary_range
-geometry_msgs/Pose secondary
-float64 secondary_reprojection_error
-float64 secondary_range
+kc_vision_msgs/Estimate primary
+kc_vision_msgs/Estimate secondary

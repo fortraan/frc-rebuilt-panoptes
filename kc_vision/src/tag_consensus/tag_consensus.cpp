@@ -16,6 +16,9 @@
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <kc_vision_msgs/msg/observation.hpp>
+#include <kc_vision_msgs/msg/estimate.hpp>
+
+#include <fmt/format.h>
 
 #include "apecs.h"
 #include "utilities.h"
@@ -37,6 +40,7 @@ class TagConsensus : public rclcpp::Node {
     double maxReprojectionError;
     double maxReprojectionErrorDifference;
     double maxRange;
+
     std::string consensusFrameId;
 
     std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>> posePublisher;
@@ -48,23 +52,12 @@ class TagConsensus : public rclcpp::Node {
         observations[observation->id] = std::move(observation);
     }
 
-    bool shouldReject(const geometry_msgs::msg::Pose& pose, double reprojectionError, double range) {
-        if (pose.position.z > 1) {
-            RCLCPP_DEBUG(get_logger(), "rejected: z > 1");
-            return true;
-        }
-        if (pose.position.z < -0.4) {
-            RCLCPP_DEBUG(get_logger(), "rejected: z < -0.4");
-            return true;
-        }
-        if (reprojectionError >= maxReprojectionError) {
-            RCLCPP_DEBUG(get_logger(), "rejected: reprojection error");
-            return true;
-        }
-        if (range >= maxRange) {
-            RCLCPP_DEBUG(get_logger(), "rejected: out of range");
-            return true;
-        }
+    bool shouldReject(const geometry_msgs::msg::Pose& fieldRelativePose,
+                      const kc_vision_msgs::msg::Estimate& estimate) const {
+        if (fieldRelativePose.position.z > 1) return true;
+        if (fieldRelativePose.position.z < -0.4) return true;
+        if (estimate.reprojection_error >= maxReprojectionError) return true;
+        if (estimate.range >= maxRange) return true;
         return false;
     }
 
@@ -72,43 +65,34 @@ class TagConsensus : public rclcpp::Node {
         const auto now = get_clock()->now();
 
         diagnostic_msgs::msg::DiagnosticStatus diagnostics;
-        diagnostic_msgs::msg::KeyValue diagValue;
         diagnostics.name = "Tag Consensus";
 
-        std::vector<Observation> apecsObservations;
-
-        RCLCPP_DEBUG(get_logger(), "Performing APECS with %lu observations", observations.size());
+        diagnostic_msgs::msg::KeyValue diagValue;
         diagValue.key = "Num. observations";
         diagValue.value = std::to_string(observations.size());
         diagnostics.values.emplace_back(std::move(diagValue));
+        // todo more diagnostics
 
-        int rejectedForAge = 0;
+        std::vector<Observation> apecsObservations;
+
         auto iter = observations.begin();
         const auto end = observations.end();
         while  (iter != end) {
             const auto observation = iter->second;
 
-            const auto observationAge = now - observation->header.stamp;
-            RCLCPP_DEBUG(
-                get_logger(), "Processing observation %s, which is %ld ms old",
-                observation->id.c_str(), observationAge.to_chrono<std::chrono::milliseconds>().count()
-            );
-            if (observationAge > maxEstimateAge) {
+            if (now - observation->header.stamp > maxEstimateAge) {
                 // this observation is too old and should be discarded.
-                rejectedForAge++;
-                RCLCPP_DEBUG(get_logger(), "Rejected for age!");
                 iter = observations.erase(iter);
                 continue;
-            } else {
-                iter++;
             }
+            ++iter;
 
             // copy into stamped poses because tf2 *INSISTS* on having stamps
             geometry_msgs::msg::PoseStamped primaryTagRelative, secondaryTagRelative;
             primaryTagRelative.header = observation->header;
-            primaryTagRelative.pose = observation->primary;
+            primaryTagRelative.pose = observation->primary.pose;
             secondaryTagRelative.header = observation->header;
-            secondaryTagRelative.pose = observation->secondary;
+            secondaryTagRelative.pose = observation->secondary.pose;
 
             geometry_msgs::msg::PoseStamped primary, secondary;
             buffer.transform(
@@ -121,20 +105,13 @@ class TagConsensus : public rclcpp::Node {
             );
 
             KC_DEBUG_ASSERT_ROS(
-                get_logger(), observation->primary_reprojection_error <= observation->secondary_reprojection_error,
+                get_logger(), observation->primary.reprojection_error <= observation->secondary.reprojection_error,
                 "Primary estimate should have lower reprojection error than the secondary estimate!"
             );
-            RCLCPP_DEBUG(get_logger(), "Considering primary pose (reproj. error %f)", observation->primary_reprojection_error);
-            const auto primaryRejected = shouldReject(primary.pose, observation->primary_reprojection_error, observation->primary_range);
-            RCLCPP_DEBUG(get_logger(), "Considering secondary pose (reproj. error %f)", observation->secondary_reprojection_error);
-            const auto secondaryRejected = shouldReject(secondary.pose, observation->secondary_reprojection_error, observation->secondary_range)
-                || std::abs(observation->secondary_reprojection_error - observation->primary_reprojection_error) >= maxReprojectionErrorDifference;
-
-            RCLCPP_DEBUG(
-                get_logger(), "primary: %s, secondary: %s",
-                primaryRejected ? "rejected" : "accepted",
-                secondaryRejected ? "rejected" : "accepted"
-            );
+            const auto primaryRejected = shouldReject(primary.pose, observation->primary);
+            const auto secondaryRejected = shouldReject(secondary.pose, observation->secondary)
+                || observation->secondary.reprojection_error - observation->primary.reprojection_error
+                    >= maxReprojectionErrorDifference;
 
             if (primaryRejected && secondaryRejected) {
                 // both transforms rejected. don't do anything with this observation.
@@ -161,22 +138,16 @@ class TagConsensus : public rclcpp::Node {
             }
         }
 
-        RCLCPP_DEBUG(get_logger(), "Rejected %d old observations. %lu left", rejectedForAge, apecsObservations.size());
-
-        if (!apecsObservations.empty()) {
-            const auto consensus = apecs(apecsObservations, get_logger(), diagnostics);
+        if (apecsObservations.empty()) {
+            diagnostics.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
+            diagnostics.message = "No observations; cannot reach consensus";
+        } else {
+            const auto consensus = apecs(apecsObservations, get_logger());
             if (consensus) {
-                if (std::isnan(consensus->mean.position.x) ||
-                    std::isnan(consensus->mean.position.y) ||
-                    std::isnan(consensus->mean.position.z) ||
-                    std::isnan(consensus->mean.orientation.w) ||
-                    std::isnan(consensus->mean.orientation.x) ||
-                    std::isnan(consensus->mean.orientation.y) ||
-                    std::isnan(consensus->mean.orientation.z) ||
-                    consensus->covariance.hasNaN()) {
-                    RCLCPP_DEBUG(get_logger(), "Consensus has NaN, ignoring.");
-                    return;
-                }
+                diagnostics.level = diagnostic_msgs::msg::DiagnosticStatus::OK;
+                diagnostics.message = fmt::format(
+                    "Consensus reached with covariance sum {:.4}", consensus->covariance.diagonal().sum()
+                );
 
                 geometry_msgs::msg::TransformStamped transform;
                 transform.header.stamp = consensus->time;
@@ -191,13 +162,28 @@ class TagConsensus : public rclcpp::Node {
                 geometry_msgs::msg::PoseWithCovarianceStamped poseWithCovariance;
                 poseWithCovariance.header = transform.header;
                 poseWithCovariance.pose.pose = consensus->mean;
-                std::ranges::copy_n(consensus->covariance.data(), 36, poseWithCovariance.pose.covariance.begin());
+                std::ranges::copy_n(
+                    consensus->covariance.data(), 36, poseWithCovariance.pose.covariance.begin()
+                );
                 posePublisher->publish(poseWithCovariance);
             } else {
-                RCLCPP_DEBUG(get_logger(), "APECS failed to reach consensus!");
-                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 300, "APECS failed to reach consensus!");
+                RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 300, "APECS failed to reach consensus!");
+                diagnostics.level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+                diagnostics.message = "APECS failed to reach consensus!";
             }
         }
+
+        diagValue.key = "Processing time";
+        diagValue.value = fmt::format(
+            "{} ms", (get_clock()->now() - now).to_chrono<std::chrono::milliseconds>().count()
+        );
+        diagnostics.values.emplace_back(std::move(diagValue));
+
+        // publish diagnostics
+        diagnostic_msgs::msg::DiagnosticArray diagnosticArray;
+        diagnosticArray.header.stamp = now;
+        diagnosticArray.status.emplace_back(std::move(diagnostics));
+        diagnosticsPublisher->publish(diagnosticArray);
     }
 
 public:
@@ -207,15 +193,21 @@ public:
         maxEstimateAge = std::chrono::milliseconds(declare_parameter<int64_t>(
             "max_estimate_age_ms", 60
         ));
-        maxReprojectionError = declare_parameter<double>("max_reprojection_error", 0.5);
-        maxReprojectionErrorDifference = declare_parameter<double>("max_reprojection_error_difference", 0.35);
+        maxReprojectionError = declare_parameter<double>(
+            "max_reprojection_error", 0.5
+        );
+        maxReprojectionErrorDifference = declare_parameter<double>(
+            "max_reprojection_error_difference", 0.35
+        );
         maxRange = declare_parameter<double>("max_range", 4);
 
         const auto updateInterval = std::chrono::milliseconds(declare_parameter<int64_t>(
             "update_interval_ms", 20
         ));
 
-        consensusFrameId = declare_parameter<std::string>("consensus_frame_id", "vision_pose_estimate");
+        consensusFrameId = declare_parameter<std::string>(
+            "consensus_frame_id", "vision_pose_estimate"
+        );
         if (consensusFrameId.empty()) {
             constexpr auto msg = "consensus_frame_id cannot be empty!";
             RCLCPP_FATAL(get_logger(), msg);
@@ -225,6 +217,8 @@ public:
         posePublisher = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
             consensusFrameId, rclcpp::SensorDataQoS()
         );
+
+        diagnosticsPublisher = create_publisher<diagnostic_msgs::msg::DiagnosticArray>("/diagnostics", 1);
 
         observationSubscriber = create_subscription<kc_vision_msgs::msg::Observation>(
             "/observations", rclcpp::SensorDataQoS(),

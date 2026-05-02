@@ -33,9 +33,11 @@ namespace {
         }
 
         Eigen::Vector3d mean = mat.rowwise().mean();
+
         thread_local Eigen::Matrix3Xd error;
         error.resize(Eigen::NoChange, numPositions);
         error = mat.colwise() - mean;
+
         Eigen::Matrix3d covariance;
         if (numPositions > 1) {
             covariance = error * error.transpose() / static_cast<double>(numPositions - 1);
@@ -90,14 +92,13 @@ namespace {
 
         Eigen::Matrix3d rpyCovariance;
         if (numQuaternions > 1) {
-            const Eigen::Matrix4d quatCovariance = (q.colwise() - mean) * (q.colwise() - mean).transpose() / static_cast<double>(numQuaternions - 1);
+            const Eigen::Matrix4d quatCovariance = (q.colwise() - mean) * (q.colwise() - mean).transpose()
+                / static_cast<double>(numQuaternions - 1);
             const Eigen::Matrix<double, 3, 4> jacobian = quatToEulerJacobian(mean);
             rpyCovariance = jacobian * quatCovariance * jacobian.transpose();
         } else {
             rpyCovariance.setZero();
         }
-
-        KC_DEBUG_ASSERT(!mean.hasNaN(), "quatAverage has nan!");
 
         Quaternion ret;
         ret.x = mean(0);
@@ -167,7 +168,8 @@ namespace {
         return ret;
     }
 
-    std::optional<Model> apecsTwoPlus(const std::vector<const Observation*>& observations, rclcpp::Logger logger) {
+    std::optional<Model> apecsTwoPlus(const std::vector<const Observation*>& observations,
+                                      const rclcpp::Logger& logger) {
         KC_DEBUG_ASSERT_ROS(logger, !observations.empty(), "apecsTwoPlus requires at least 2 observations");
 
         const auto hasSecondary = [](const Observation* observation) {
@@ -181,11 +183,6 @@ namespace {
         const auto numDuals = duals.size();
         const auto hasSinglets = numSinglets != 0;
         const auto hasDuals = numDuals != 0;
-
-        RCLCPP_DEBUG(
-            logger, "running apecsTwoPlus with %lu poses - %lu singlets, %lu duals",
-            observations.size(), numSinglets, numDuals
-        );
 
         KC_DEBUG_ASSERT_ROS(logger, numDuals <= 64, "Too many duals to fit in combination variable!");
 
@@ -201,58 +198,33 @@ namespace {
         if (hasDuals) {
             std::vector<std::pair<rclcpp::Time, const Pose*>> transformCombo;
             transformCombo.reserve(numSinglets + numDuals);
+
             const uint64_t numCombinations = 1 << numDuals;
             for (uint64_t combination = 0; combination < numCombinations; combination++) {
                 transformCombo.clear();
+
                 if (hasSinglets) std::ranges::copy(singletPairs, std::back_inserter(transformCombo));
+
                 for (size_t i = 0; i < numDuals; i++) {
-                    bool useSecondary = ((combination >> i) & 1) == 1;
-                    RCLCPP_DEBUG(logger, "index %lu: useSecondary %s", i, useSecondary ? "yes" : "no");
                     transformCombo.emplace_back(
                         duals[i]->time,
-                        useSecondary ? &duals[i]->secondaryEstimate.value()
-                                     : &duals[i]->primaryEstimate
+                        (combination >> i & 1) == 1 ? &duals[i]->secondaryEstimate.value()
+                                                    : &duals[i]->primaryEstimate
                     );
                 }
 
                 const auto model = fitModel(transformCombo);
-                KC_DEBUG_ASSERT_ROS(logger, !std::isnan(model.mean.position.x), "model t.x is nan!");
-                KC_DEBUG_ASSERT_ROS(logger, !std::isnan(model.mean.position.y), "model t.y is nan!");
-                KC_DEBUG_ASSERT_ROS(logger, !std::isnan(model.mean.position.z), "model t.z is nan!");
-                KC_DEBUG_ASSERT_ROS(logger, !std::isnan(model.mean.orientation.w), "model q.w is nan!");
-                KC_DEBUG_ASSERT_ROS(logger, !std::isnan(model.mean.orientation.x), "model q.x is nan!");
-                KC_DEBUG_ASSERT_ROS(logger, !std::isnan(model.mean.orientation.y), "model q.y is nan!");
-                KC_DEBUG_ASSERT_ROS(logger, !std::isnan(model.mean.orientation.z), "model q.z is nan!");
-                KC_DEBUG_ASSERT_ROS(logger, !model.covariance.diagonal().hasNaN(), "covariance has nan!");
-                const auto covarianceSum = model.covariance.diagonal().sum();
-                RCLCPP_DEBUG(
-                    logger, "combination %08lx / %08lx: covariance is %f [%f %f %f %f %f %f]",
-                    combination, numCombinations, covarianceSum,
-                    model.covariance.diagonal()[0],
-                    model.covariance.diagonal()[1],
-                    model.covariance.diagonal()[2],
-                    model.covariance.diagonal()[3],
-                    model.covariance.diagonal()[4],
-                    model.covariance.diagonal()[5]
-                );
-                if (!bestModel || covarianceSum < bestModel->covariance.diagonal().sum()) {
-                    RCLCPP_DEBUG(logger, "selecting combination as new best");
+                if (!bestModel || model.covariance.diagonal().sum() < bestModel->covariance.diagonal().sum()) {
                     bestModel = model;
                 }
             }
         }
 
         // if we have both singlets and duals, use the best model that includes both
-        if (bestModel.has_value()) {
-            RCLCPP_DEBUG(logger, "there is a best model. returning it");
-            return bestModel;
-        }
+        if (bestModel.has_value()) return bestModel;
         // if we've only got singlets, fit a model to them and return it
-        if (hasSinglets) {
-            RCLCPP_DEBUG(logger, "no best model, but there are singlets. returning singlet model");
-            return fitModel(singletPairs);
-        }
-        RCLCPP_DEBUG(logger, "no model. returning std::nullopt");
+        if (hasSinglets) return fitModel(singletPairs);
+        // we've got nothing, so return nothing
         return std::nullopt;
     }
 }
@@ -261,10 +233,9 @@ Observation::Observation(const rclcpp::Time& time, const geometry_msgs::msg::Pos
     const std::optional<geometry_msgs::msg::Pose>& secondaryEstimate) :
     time(time), primaryEstimate(primaryEstimate), secondaryEstimate(secondaryEstimate) { }
 
-std::optional<Model> apecs(const std::vector<Observation>& observations, rclcpp::Logger logger, diagnostic_msgs::msg::DiagnosticStatus diagnostics) {
+std::optional<Model> apecs(const std::vector<Observation>& observations, const rclcpp::Logger& logger) {
     // at least one tag is required for any kind of estimate to be derived.
     if (observations.empty()) {
-        RCLCPP_DEBUG(logger, "no observations. returning std::nullopt");
         return std::nullopt;
     }
 
@@ -273,7 +244,6 @@ std::optional<Model> apecs(const std::vector<Observation>& observations, rclcpp:
         // but if it wasn't we have a dilemma - which one is right? in this case, we have to fall back to
         // reprojection error. the primary estimate is the one with lower reprojection error, so it's the
         // one we go with. we can't calculate covariance, of course, but it's better than nothing.
-        RCLCPP_DEBUG(logger, "1 observation. returning it alone");
         return { {
             observations.front().time,
             observations.front().primaryEstimate,
