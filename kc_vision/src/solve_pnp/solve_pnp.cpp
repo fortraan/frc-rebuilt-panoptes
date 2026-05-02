@@ -185,12 +185,12 @@ class SolvePnP : public rclcpp::Node {
             observation.header.frame_id = fmt::format("apriltag_{}", detection.id);
             observation.header.stamp = detectionTime;
             observation.id = fmt::format("{}{}", posePrefix, observation.header.frame_id);
-            convert(primary, observation.primary);
-            observation.primary_reprojection_error = reprojectionErrors[primaryIndex];
-            observation.primary_range = cv::norm(translations[primaryIndex]);
-            convert(secondary, observation.secondary);
-            observation.secondary_reprojection_error = reprojectionErrors[secondaryIndex];
-            observation.secondary_range = cv::norm(translations[secondaryIndex]);
+            convert(primary, observation.primary.pose);
+            observation.primary.reprojection_error = reprojectionErrors[primaryIndex];
+            observation.primary.range = cv::norm(translations[primaryIndex]);
+            convert(secondary, observation.secondary.pose);
+            observation.secondary.reprojection_error = reprojectionErrors[secondaryIndex];
+            observation.secondary.range = cv::norm(translations[secondaryIndex]);
             observationPublisher->publish(observation);
 
             geometry_msgs::msg::TransformStamped transformStamped;
