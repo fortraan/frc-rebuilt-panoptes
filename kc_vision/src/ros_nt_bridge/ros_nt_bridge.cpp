@@ -5,13 +5,20 @@
 #include <tf2_ros/transform_broadcaster.hpp>
 
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <kc_vision_msgs/msg/clumps.hpp>
+#include <kc_vision_msgs/msg/clump.hpp>
 
 #include <networktables/NetworkTableInstance.h>
 #include <networktables/NetworkTable.h>
 #include <networktables/DoubleTopic.h>
 #include <networktables/StructTopic.h>
+#include <networktables/StructArrayTopic.h>
 
 #include <frc/geometry/Pose3d.h>
+#include <frc/geometry/Rectangle2d.h>
+#include <wpiutil/wpi/struct/Struct.h>
+
+#include "nt_structs.h"
 
 namespace {
     using namespace units::literals;
@@ -20,6 +27,7 @@ namespace {
         frc::Rotation3d()
     );
 }
+
 
 class RosNtBridge : public rclcpp::Node {
     tf2_ros::Buffer buffer;
@@ -30,13 +38,18 @@ class RosNtBridge : public rclcpp::Node {
 
     nt::StructTopic<frc::Pose3d> visionPoseTopic;
     nt::StructTopic<frc::Pose3d> fusedPoseTopic;
+    nt::StructArrayTopic<FuelClump> fuelClumpTopic;
     nt::DoubleTopic timeTopic;
 
     nt::StructPublisher<frc::Pose3d> visionPosePublisher;
     nt::StructSubscriber<frc::Pose3d> fusedPoseSubscriber;
+    nt::StructArrayPublisher<FuelClump> fuelClumpPublisher;
     nt::DoublePublisher timePublisher;
 
+
+
     std::shared_ptr<rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>> poseSubscription;
+    std::shared_ptr<rclcpp::Subscription<kc_vision_msgs::msg::Clumps>> clumpsSubscription;
     std::shared_ptr<rclcpp::TimerBase> updateTimer;
 
     rclcpp::Time rioToRosTime(int64_t rioTimeMicros) {
@@ -78,6 +91,8 @@ class RosNtBridge : public rclcpp::Node {
     }
 
     void onPoseReceived(const geometry_msgs::msg::PoseWithCovarianceStamped& pose) {
+        //RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 100, "Pose Received");
+
         const frc::Pose3d pose3d(
             frc::Translation3d(
                 units::meter_t(pose.pose.pose.position.x),
@@ -94,6 +109,41 @@ class RosNtBridge : public rclcpp::Node {
         visionPosePublisher.Set(pose3d);
     }
 
+    void onClumpsReceived(const kc_vision_msgs::msg::Clumps& msg) {
+        const auto numClumps = msg.clumps.size();
+
+        std::vector<FuelClump> clumpsVec{};
+        clumpsVec.reserve(numClumps);
+
+        for (int i = 0; i < numClumps; i++) {
+            const auto clump = msg.clumps.at(i);
+            frc::Translation2d centroid = frc::Translation2d(
+                units::meter_t{clump.centroid.x},
+                units::meter_t{clump.centroid.y}
+            );
+
+            frc::Translation2d boundsTopLeftCorner = frc::Translation2d(
+                units::meter_t{clump.bounding_box.x},
+                units::meter_t{clump.bounding_box.y}
+            );
+            frc::Translation2d boundsBottomRightCorner = boundsTopLeftCorner + frc::Translation2d(
+                units::meter_t{clump.bounding_box.width},
+                units::meter_t{clump.bounding_box.height}
+            );
+
+            clumpsVec.emplace_back(FuelClump {
+                centroid,
+                frc::Rectangle2d(
+                    boundsTopLeftCorner,
+                    boundsBottomRightCorner
+                ),
+                clump.area,
+                clump.label
+            });
+        }
+        fuelClumpPublisher.Set(clumpsVec);
+    }
+
     void publishTime() {
         timePublisher.Set(get_clock()->now().seconds());
     }
@@ -108,13 +158,16 @@ public:
         const auto table = ntInstance.GetTable("vision");
         visionPoseTopic = table->GetStructTopic<frc::Pose3d>("vision_pose_estimate");
         fusedPoseTopic = table->GetStructTopic<frc::Pose3d>("fused_pose_estimate");
+        fuelClumpTopic = table->GetStructArrayTopic<FuelClump>("fuel_clumps");
         timeTopic = table->GetDoubleTopic("time");
 
         visionPosePublisher = visionPoseTopic.Publish();
         fusedPoseSubscriber = fusedPoseTopic.Subscribe(DEFAULT_POSE);
+        fuelClumpPublisher = fuelClumpTopic.Publish();
 
         ntInstance.StartClient4("orin");
         ntInstance.SetServerTeam(6419);
+
 
         // ntInstance.AddTimeSyncListener(true, [this](const nt::Event& event) {
         //     onTimeSync(event);
@@ -124,6 +177,13 @@ public:
             "/visual_pose_estimate", rclcpp::SensorDataQoS(),
             [this](const geometry_msgs::msg::PoseWithCovarianceStamped& pose) {
                 onPoseReceived(pose);
+            }
+        );
+
+        clumpsSubscription = create_subscription<kc_vision_msgs::msg::Clumps>(
+            "/intake_camera/clumps", rclcpp::SensorDataQoS(),
+            [this](const kc_vision_msgs::msg::Clumps& msg) {
+                onClumpsReceived(msg);
             }
         );
 

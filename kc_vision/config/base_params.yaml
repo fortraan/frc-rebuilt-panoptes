@@ -52,7 +52,7 @@ oak:
       grid:
         frame_id: "intake_grid"
         cols: 20
-        rows: 20
+        rows: 40
         cell_size: 0.03429
 
   resize:

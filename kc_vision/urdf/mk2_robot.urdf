@@ -29,15 +29,31 @@
         </visual>
     </link>
 
+    <link name="right_camera">
+        <visual>
+            <origin xyz="0 0 -0.01"/>
+            <geometry>
+                <box size="0.08 0.04 0.02"/>
+            </geometry>
+        </visual>
+    </link>
+
     <joint name="robot_to_chassis" type="fixed">
         <parent link="robot"/>
         <child link="chassis"/>
     </joint>
 
+    <joint name="chassis_to_right_camera" type="fixed">
+            <parent link="chassis"/>
+            <child link="right_camera"/>
+            <origin xyz="0.145311 -0.303003 0.708814" rpy="-1.5708 0 3.14159"/>
+    </joint>
+
+
     <joint name="chassis_to_front_camera" type="fixed">
         <parent link="chassis"/>
         <child link="front_camera"/>
-        <origin xyz="0 0 0.5"/>
+        <origin xyz="0 0.1 0.5"/>
         <!--<origin xyz="0.5 0 0.5" rpy="-1.57079 0 -1.57079"/>-->
     </joint>
 

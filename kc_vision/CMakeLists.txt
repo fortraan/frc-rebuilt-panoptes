@@ -108,14 +108,23 @@ target_link_libraries(tag_consensus PRIVATE
         ${diagnostic_msgs_LIBRARIES}
 )
 
-add_executable(ros_nt_bridge src/ros_nt_bridge/ros_nt_bridge.cpp)
-target_include_directories(ros_nt_bridge PRIVATE src/ros_nt_bridge)
+
+add_executable(ros_nt_bridge
+        src/ros_nt_bridge/ros_nt_bridge.cpp
+        src/ros_nt_bridge/nt_structs.cpp
+)
+target_include_directories(ros_nt_bridge PRIVATE
+        src/ros_nt_bridge
+        ${kc_vision_msgs_INCLUDE_DIRS}
+)
 target_link_libraries(ros_nt_bridge PRIVATE
         common
         rclcpp::rclcpp
         tf2_ros::tf2_ros
         ntcore
         wpimath
+        wpiutil
+        ${kc_vision_msgs_LIBRARIES}
 )
 
 #add_executable(detection_location_calculator src/intake_cam/detection_location_calculator.cpp)

@@ -99,7 +99,7 @@ def generate_launch_description():
     base_params = get_config_path("base_params.yaml")
     intake_camera_ns = "intake_camera"
     oak_ns = "oak"
-    intake_camera_path = "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9782_USB_Camera_UC852-video-index0"
+    intake_camera_path = "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._FrontFuelCam_FrontFuelCam-video-index0"
 
     nodes = [
         # this node publishes a model and description of the robot
@@ -324,7 +324,11 @@ def generate_launch_description():
 
     nodes.extend(camera_nodes(
         "front_camera", get_config_path("front_camera_params.yaml"),
-        "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._Arducam_OV9281_USB_Camera_UC762-video-index0"
+        "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._FrontAprilCam_FrontAprilCam-video-index0"
+    ))
+    nodes.extend(camera_nodes(
+        "right_camera", get_config_path("right_camera_params.yaml"),
+        "/dev/v4l/by-id/usb-Arducam_Technology_Co.__Ltd._RightAprilCam_RightAprilCam-video-index0"
     ))
 
     return LaunchDescription(nodes)

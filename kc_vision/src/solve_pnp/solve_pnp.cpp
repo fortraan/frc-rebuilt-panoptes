@@ -125,6 +125,7 @@ class SolvePnP : public rclcpp::Node {
         }
 
         const rclcpp::Time detectionTime = detections.header.stamp;
+
         for (const auto& detection : detections.detections) {
             cv::Matx<double, 4, 2> imgPoints;
 

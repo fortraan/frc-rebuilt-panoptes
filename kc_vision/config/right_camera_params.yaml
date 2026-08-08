@@ -1,0 +1,34 @@
+/right_camera:
+  usb_cam:
+    ros__parameters:
+      framerate: 30.0
+      io_method: "mmap"
+      frame_id: "right_camera"
+      #      camera_name: "logitech_c310_64AF26A0"
+      #      camera_name: "arducam_ov9281_uc762"
+      camera_name: "v1_right_camera"
+      pixel_format: "mjpeg2rgb"
+      image_width: 1280
+      image_height: 800
+      #      camera_info_url: "package://kc_vision/config/camera_calibrations/logitech_c310_64AF26A0.yaml"
+      #      camera_info_url: "package://kc_vision/config/camera_calibrations/arducam_ov9281_uc762.yaml"
+      camera_info_url: "package://kc_vision/config/camera_calibrations/v1_right_camera.yaml"
+
+  apriltag:
+    ros__parameters:
+      family: "tag36h11"
+      size: 0.16475 # side length in meters
+      # max_tags: 32
+
+      pose_estimate_method: "" # set to empty to disable pose estimation
+
+  solve_pnp:
+    ros__parameters:
+      camera_frame_id: "right_camera"
+      pose_prefix: "right_camera/"
+
+  preview:
+    ros__parameters:
+      use_scale: false
+      width: 320.0
+      height: 240.0

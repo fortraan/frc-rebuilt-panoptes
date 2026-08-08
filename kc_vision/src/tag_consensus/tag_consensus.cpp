@@ -139,6 +139,7 @@ class TagConsensus : public rclcpp::Node {
         }
 
         if (apecsObservations.empty()) {
+            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 300L, "No observations; cannot reach consensus");
             diagnostics.level = diagnostic_msgs::msg::DiagnosticStatus::WARN;
             diagnostics.message = "No observations; cannot reach consensus";
         } else {
